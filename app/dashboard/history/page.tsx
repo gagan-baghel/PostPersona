@@ -1,38 +1,26 @@
-import { createClient } from "@/lib/supabase/server"
+'use client'
+
 import { PostCard } from "@/components/post-card"
+import { usePosts } from "@/hooks/use-posts"
+import { PostHistorySkeleton } from "@/components/skeletons/post-history-skeleton"
 
-export default async function HistoryPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export default function HistoryPage() {
+  const { posts, isLoading } = usePosts()
 
-  if (!user) {
-    return null
-  }
-
-  const { data: posts, error } = await supabase
-    .from("posts")
-    .select(
-      `
-      *,
-      avatars (
-        id,
-        name,
-        title,
-        avatar_url
-      )
-    `,
+  if (isLoading) {
+    return (
+      <div className="p-4 sm:p-6 md:p-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold tracking-tight">Post History</h1>
+          <p className="mt-2 text-muted-foreground">View your complete content archive with posts and images</p>
+        </div>
+        <PostHistorySkeleton />
+      </div>
     )
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-
-  if (error) {
-    console.error("[v0] Error fetching posts:", error)
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Post History</h1>
         <p className="mt-2 text-muted-foreground">View your complete content archive with posts and images</p>
@@ -45,8 +33,8 @@ export default async function HistoryPage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
+        <div className="rounded-lg border bg-card p-12 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
             <svg className="h-8 w-8 text-accent" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
@@ -55,7 +43,7 @@ export default async function HistoryPage() {
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold">No posts yet</h3>
+          <h3 className="mt-6 text-lg font-semibold">No posts yet</h3>
           <p className="mt-2 text-sm text-muted-foreground">Generate your first post to see it here</p>
         </div>
       )}

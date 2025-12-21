@@ -35,27 +35,27 @@ export default async function HomePage() {
 
       {/* Hero Section */}
       <main className="flex-1">
-        <div className="container mx-auto px-6 py-24">
+        <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-24">
           <div className="mx-auto max-w-4xl text-center">
-            <h1 className="text-balance text-5xl font-bold leading-tight tracking-tight md:text-6xl">
+            <h1 className="text-balance text-4xl sm:text-5xl md:text-6xl font-bold leading-tight tracking-tight">
               AI-Powered LinkedIn Content Creation
             </h1>
-            <p className="mt-6 text-pretty text-lg leading-relaxed text-muted-foreground md:text-xl">
+            <p className="mt-6 text-pretty text-base sm:text-lg md:text-xl leading-relaxed text-muted-foreground">
               Create engaging LinkedIn posts with AI personas that match your unique voice and style. Build your
               personal brand with authentic content that resonates.
             </p>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Button asChild size="lg" className="text-base">
+            <div className="mt-10 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4">
+              <Button asChild size="lg" className="text-base w-full sm:w-auto">
                 <Link href="/auth/sign-up">Start Creating for Free</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="text-base bg-transparent">
+              <Button asChild size="lg" variant="outline" className="text-base bg-transparent w-full sm:w-auto">
                 <Link href="/pricing">View Pricing</Link>
               </Button>
             </div>
           </div>
 
           {/* Features Grid */}
-          <div className="mx-auto mt-24 grid max-w-5xl gap-8 md:grid-cols-3">
+          <div className="mx-auto mt-16 sm:mt-24 grid max-w-5xl gap-6 sm:gap-8 sm:grid-cols-2 md:grid-cols-3">
             <div className="rounded-lg border bg-card p-6">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                 <svg

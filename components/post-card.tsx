@@ -23,7 +23,7 @@ interface Post {
   image_url: string | null
   image_preset: string | null
   posted_to_linkedin: boolean
-  avatars: {
+  personas: {
     id: string
     name: string
     title: string | null
@@ -76,16 +76,16 @@ export function PostCard({ post }: { post: Post }) {
         {/* Header */}
         <div className="mb-4 flex items-start justify-between">
           <div className="flex items-start gap-3">
-            {post.avatars ? (
+            {post.personas ? (
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
-                {post.avatars.avatar_url ? (
+                {post.personas.avatar_url ? (
                   <img
-                    src={post.avatars.avatar_url || "/placeholder.svg"}
-                    alt={post.avatars.name}
+                    src={post.personas.avatar_url || "/placeholder.svg"}
+                    alt={post.personas.name}
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-sm font-bold text-primary">{post.avatars.name.charAt(0).toUpperCase()}</span>
+                  <span className="text-sm font-bold text-primary">{post.personas.name.charAt(0).toUpperCase()}</span>
                 )}
               </div>
             ) : (
@@ -103,8 +103,8 @@ export function PostCard({ post }: { post: Post }) {
 
             <div className="min-w-0 flex-1">
               <div className="font-medium">
-                {post.avatars?.name || "Deleted Avatar"}
-                {post.avatars?.title && <span className="text-sm text-muted-foreground"> • {post.avatars.title}</span>}
+                {post.personas?.name || "Deleted Persona"}
+                {post.personas?.title && <span className="text-sm text-muted-foreground"> • {post.personas.title}</span>}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>{formattedDate}</span>

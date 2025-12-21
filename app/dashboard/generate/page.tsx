@@ -1,53 +1,43 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+'use client'
+
 import { PostGenerator } from "@/components/post-generator"
+import { usePersonas } from "@/hooks/use-personas"
+import { useAuth } from "@/hooks/use-auth"
+import { PersonaGridSkeleton } from "@/components/skeletons/persona-grid-skeleton"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
-export default async function GeneratePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ avatar?: string }>
-}) {
-  const params = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export default function GeneratePage() {
+  const { user } = useAuth()
+  const { personas, isLoading } = usePersonas()
 
-  if (!user) {
-    redirect("/auth/login")
-  }
-
-  const [{ data: avatars }, { data: profile }] = await Promise.all([
-    supabase
-      .from("avatars")
-      .select("*")
-      .or(`user_id.eq.${user.id},avatar_type.in.(suggested,default)`)
-      .order("created_at", { ascending: false }),
-    supabase.from("profiles").select("coins").eq("id", user.id).single(),
-  ])
-
-  // Get selected avatar if provided
-  let selectedAvatar = null
-  if (params.avatar && avatars) {
-    selectedAvatar = avatars.find((a) => a.id === params.avatar) || null
-  }
-
-  // Filter only user's avatars for generation (not suggested ones)
-  const userAvatars = avatars?.filter((a) => a.user_id === user.id) || []
-
-  return (
-    <div className="p-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-          <p className="mt-2 text-muted-foreground">Create engaging LinkedIn content with your AI personas</p>
+  if (isLoading) {
+    return (
+      <div className="p-4 sm:p-6 md:p-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
+            <p className="mt-2 text-muted-foreground">Create engaging LinkedIn content with your AI personas</p>
+          </div>
+          <PersonaGridSkeleton />
         </div>
+      </div>
+    )
+  }
 
-        {userAvatars && userAvatars.length > 0 ? (
-          <PostGenerator avatars={userAvatars} selectedAvatar={selectedAvatar} userProfile={profile || { coins: 0 }} />
-        ) : (
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+  const userPersonas = personas.filter((p) => p.user_id === user?.id) || []
+
+  if (!userPersonas.length) {
+    return (
+      <div className="p-4 sm:p-6 md:p-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
+            <p className="mt-2 text-muted-foreground">Create engaging LinkedIn content with your AI personas</p>
+          </div>
+
+          <div className="rounded-lg border bg-card p-12 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
               <svg
                 className="h-8 w-8 text-primary"
                 fill="none"
@@ -62,12 +52,28 @@ export default async function GeneratePage({
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold">Create an avatar first</h3>
+            <h2 className="mt-6 text-xl font-semibold">No AI Personas Yet</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              You need to create at least one AI avatar before generating posts
+              Create your first AI persona to start generating personalized LinkedIn posts.
             </p>
+            <Button asChild className="mt-6">
+              <Link href="/dashboard/personas">Create Persona</Link>
+            </Button>
           </div>
-        )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
+          <p className="mt-2 text-muted-foreground">Create engaging LinkedIn content with your AI personas</p>
+        </div>
+
+        <PostGenerator avatars={userPersonas} selectedAvatar={null} />
       </div>
     </div>
   )

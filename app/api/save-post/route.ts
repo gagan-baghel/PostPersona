@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
-    const { avatarId, topic, content } = await request.json()
+    const { personaId, topic, content, imageUrl, imagePrompt, imagePreset } = await request.json()
 
     const supabase = await createClient()
     const {
@@ -16,9 +16,12 @@ export async function POST(request: Request) {
     // Save post to database
     const { error } = await supabase.from("posts").insert({
       user_id: user.id,
-      avatar_id: avatarId,
+      persona_id: personaId,
       topic,
       content,
+      image_url: imageUrl,
+      image_prompt: imagePrompt,
+      image_preset: imagePreset,
     })
 
     if (error) {

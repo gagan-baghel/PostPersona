@@ -1,39 +1,38 @@
-import { createClient } from "@/lib/supabase/server"
+'use client'
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { usePersonas } from "@/hooks/use-personas"
+import { usePosts } from "@/hooks/use-posts"
+import { DashboardSkeleton } from "@/components/skeletons/dashboard-skeleton"
+import { PostCard } from "@/components/post-card"
+import { Newspaper } from "lucide-react"
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export default function DashboardPage() {
+  const { personas, isLoading: personasLoading } = usePersonas()
+  const { posts, isLoading: postsLoading } = usePosts()
 
-  // Get user's avatars count
-  const { count: avatarCount } = await supabase
-    .from("avatars")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user!.id)
+  if (personasLoading || postsLoading) {
+    return <DashboardSkeleton />
+  }
 
-  // Get user's posts count
-  const { count: postCount } = await supabase
-    .from("posts")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user!.id)
+  const personaCount = personas.length
+  const postCount = posts.length
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="mt-2 text-muted-foreground">Welcome back! Ready to create amazing content?</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="mb-8 grid gap-6 md:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">AI Avatars</p>
-              <p className="mt-2 text-3xl font-bold">{avatarCount || 0}</p>
+              <p className="text-sm font-medium text-muted-foreground">AI Personas</p>
+              <p className="mt-2 text-3xl font-bold">{personaCount}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
               <svg
@@ -57,7 +56,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Posts Created</p>
-              <p className="mt-2 text-3xl font-bold">{postCount || 0}</p>
+              <p className="mt-2 text-3xl font-bold">{postCount}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10">
               <svg
@@ -81,7 +80,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">This Month</p>
-              <p className="mt-2 text-3xl font-bold">{postCount || 0}</p>
+              <p className="mt-2 text-3xl font-bold">{postCount}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-chart-2/10">
               <svg
@@ -98,40 +97,42 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="rounded-lg border bg-card p-6">
-        <h2 className="text-lg font-semibold">Quick Actions</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Get started with creating your content</p>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <Button asChild size="lg" className="h-auto flex-col items-start gap-2 p-6">
-            <Link href="/dashboard/avatars">
-              <div className="flex w-full items-center justify-between">
-                <span className="text-base font-semibold">Create Avatar</span>
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-              <span className="text-left text-sm font-normal text-primary-foreground/80">
-                Build your first AI persona to start generating content
-              </span>
-            </Link>
-          </Button>
-
-          <Button asChild size="lg" variant="outline" className="h-auto flex-col items-start gap-2 p-6 bg-transparent">
-            <Link href="/dashboard/history">
-              <div className="flex w-full items-center justify-between">
-                <span className="text-base font-semibold">View History</span>
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-              <span className="text-left text-sm font-normal text-muted-foreground">
-                Browse and manage your previously generated posts
-              </span>
-            </Link>
+      {/* Recent Activity / History */}
+      <div className="rounded-lg bg-background">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Newspaper className="h-5 w-5 text-primary" />
+            Recent Posts
+          </h2>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/history">View All</Link>
           </Button>
         </div>
+
+        {posts && posts.length > 0 ? (
+          <div className="space-y-6">
+            {posts.slice(0, 5).map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card p-12 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
+              <svg className="h-8 w-8 text-accent" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+            </div>
+            <h3 className="mt-6 text-lg font-semibold">No posts yet</h3>
+            <p className="mt-2 text-sm text-muted-foreground">Generate your first post to see it here</p>
+            <Button asChild className="mt-6" size="lg">
+              <Link href="/dashboard/generate">Create Your First Post</Link>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

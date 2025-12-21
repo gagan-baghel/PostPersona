@@ -2,11 +2,11 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
-    const { avatarId, topic, content, imageUrl, imagePrompt, imagePreset } = await request.json()
+    const { personaId, topic, content, imageUrl, imagePrompt, imagePreset } = await request.json()
 
-    if (!avatarId || !topic || !content) {
+    if (!personaId || !topic || !content) {
       return Response.json(
-        { error: "Missing required fields: avatarId, topic, and content are required" },
+        { error: "Missing required fields: personaId, topic, and content are required" },
         { status: 400 },
       )
     }
@@ -20,15 +20,15 @@ export async function POST(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: avatar, error: avatarError } = await supabase
-      .from("avatars")
+    const { data: persona, error: personaError } = await supabase
+      .from("personas")
       .select("id")
-      .eq("id", avatarId)
-      .or(`user_id.eq.${user.id},avatar_type.in.(suggested,default)`)
+      .eq("id", personaId)
+      .or(`user_id.eq.${user.id},is_app_provided.eq.true`)
       .single()
 
-    if (avatarError || !avatar) {
-      return Response.json({ error: "Avatar not found or access denied" }, { status: 403 })
+    if (personaError || !persona) {
+      return Response.json({ error: "Persona not found or access denied" }, { status: 403 })
     }
 
     // Check if user has LinkedIn connected
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       .from("posts")
       .insert({
         user_id: user.id,
-        avatar_id: avatarId,
+        persona_id: personaId,
         topic,
         content,
         image_url: imageUrl || null,
