@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type MouseEvent } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -47,11 +48,82 @@ interface PersonaOption {
   name: string
 }
 
+type PlatformTag = "linkedin" | "x"
+
+interface UserConnections {
+  linkedin_connected: boolean
+  x_connected: boolean
+  auto_post_enabled: boolean
+}
+
 function toDateTimeInputValue(ts?: number | null) {
   if (!ts) return ""
   const d = new Date(ts)
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
   return d.toISOString().slice(0, 16)
+}
+
+function QueueLinkedInPreview({
+  name,
+  title,
+  content,
+}: {
+  name: string
+  title?: string | null
+  content: string
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <div className="mb-3 flex items-start gap-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold">
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{name}</p>
+          <p className="truncate text-xs text-muted-foreground">{title || "Professional"}</p>
+          <p className="text-[11px] text-muted-foreground">Queued</p>
+        </div>
+      </div>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
+      <div className="mt-3 grid grid-cols-4 border-t pt-2 text-xs text-muted-foreground">
+        <div className="text-center">Like</div>
+        <div className="text-center">Comment</div>
+        <div className="text-center">Repost</div>
+        <div className="text-center">Send</div>
+      </div>
+    </div>
+  )
+}
+
+function QueueXPreview({
+  name,
+  content,
+}: {
+  name: string
+  content: string
+}) {
+  const handle = name.toLowerCase().replace(/[^a-z0-9]/g, "") || "persona"
+
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <div className="mb-2 flex items-start gap-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{name}</p>
+          <p className="truncate text-xs text-muted-foreground">@{handle} · queued</p>
+        </div>
+      </div>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
+      <div className="mt-3 grid grid-cols-4 text-xs text-muted-foreground">
+        <div className="text-center">Reply</div>
+        <div className="text-center">Repost</div>
+        <div className="text-center">Like</div>
+        <div className="text-center">Views</div>
+      </div>
+    </div>
+  )
 }
 
 export default function ReviewPage() {
@@ -70,6 +142,12 @@ export default function ReviewPage() {
   const [weekPersonaId, setWeekPersonaId] = useState("")
   const [weekTopic, setWeekTopic] = useState("")
   const [weekPlatform, setWeekPlatform] = useState<"linkedin" | "x" | "both">("linkedin")
+  const [previewPost, setPreviewPost] = useState<ReviewPost | null>(null)
+  const [connections, setConnections] = useState<UserConnections>({
+    linkedin_connected: false,
+    x_connected: false,
+    auto_post_enabled: false,
+  })
 
   const reviewPosts = useMemo(() => posts.filter((p) => p.workflow_status === "review"), [posts])
   const scheduledPosts = useMemo(
@@ -114,9 +192,25 @@ export default function ReviewPage() {
     }
   }
 
+  const loadConnections = async () => {
+    try {
+      const response = await fetch("/api/user")
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || "Failed to load account status")
+      setConnections({
+        linkedin_connected: Boolean(data.linkedin_connected),
+        x_connected: Boolean(data.x_connected),
+        auto_post_enabled: Boolean(data.auto_post_enabled),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load account status")
+    }
+  }
+
   useEffect(() => {
     load()
     loadPersonas()
+    loadConnections()
   }, [])
 
   useEffect(() => {
@@ -129,6 +223,73 @@ export default function ReviewPage() {
     if (platform === "x") return "X"
     if (platform === "both") return "LinkedIn + X"
     return "LinkedIn"
+  }
+
+  const toPlatformTags = (platform?: string): PlatformTag[] => {
+    if (platform === "both") return ["linkedin", "x"]
+    if (platform === "x") return ["x"]
+    return ["linkedin"]
+  }
+
+  const platformName = (platform: PlatformTag) => (platform === "x" ? "X" : "LinkedIn")
+
+  const openPreview = (post: ReviewPost) => setPreviewPost(post)
+
+  const handleScheduledCardClick = (event: MouseEvent, post: ReviewPost) => {
+    const target = event.target as HTMLElement
+    if (target.closest("button,input,textarea,select,label,[role='switch']")) return
+    openPreview(post)
+  }
+
+  const updateScheduledTargets = async (id: string, targets: PlatformTag[]) => {
+    setWorkingId(id)
+    try {
+      const response = await fetch(`/api/posts/${id}/review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setTargets", targets }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || "Failed to update targets")
+
+      if (data.deleted) {
+        toast.success("Post deleted because no platforms were selected")
+      } else {
+        toast.success("Platform targets updated")
+      }
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update targets")
+    } finally {
+      setWorkingId(null)
+    }
+  }
+
+  const hasLinkedInScheduled = useMemo(
+    () => scheduledPosts.some((post) => toPlatformTags(post.target_platform).includes("linkedin")),
+    [scheduledPosts],
+  )
+  const hasXScheduled = useMemo(
+    () => scheduledPosts.some((post) => toPlatformTags(post.target_platform).includes("x")),
+    [scheduledPosts],
+  )
+  const hasAnyChannelConnected = connections.linkedin_connected || connections.x_connected
+
+  const setAutoPost = async (enabled: boolean) => {
+    const next = enabled && hasAnyChannelConnected
+    try {
+      const response = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto_post_enabled: next }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || "Failed to update automatic post")
+      setConnections((prev) => ({ ...prev, auto_post_enabled: next }))
+      toast.success(next ? "Automatic post enabled" : "Automatic post disabled")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update automatic post")
+    }
   }
 
   const reviewAction = async (id: string, action: "approve" | "reject" | "reschedule" | "delete") => {
@@ -315,7 +476,23 @@ export default function ReviewPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold">Scheduled Queue (Drag to reorder)</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Scheduled Queue (Drag to reorder)</h2>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 rounded-md border px-2 py-1">
+                <span className="text-xs text-muted-foreground">Auto Post</span>
+                <Switch
+                  checked={hasAnyChannelConnected ? connections.auto_post_enabled : false}
+                  onCheckedChange={(checked) => void setAutoPost(checked)}
+                  disabled={!hasAnyChannelConnected}
+                />
+              </div>
+              {hasLinkedInScheduled && !connections.linkedin_connected && (
+                <Badge variant="destructive">LinkedIn not connected</Badge>
+              )}
+              {hasXScheduled && !connections.x_connected && <Badge variant="destructive">X not connected</Badge>}
+            </div>
+          </div>
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : scheduledPosts.length === 0 ? (
@@ -325,6 +502,7 @@ export default function ReviewPage() {
               <Card
                 key={post.id}
                 draggable
+                className="cursor-pointer"
                 onDragStart={() => setDraggingId(post.id)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={async (e) => {
@@ -333,8 +511,15 @@ export default function ReviewPage() {
                   await reorderScheduled(draggingId, post.id)
                   setDraggingId(null)
                 }}
+                onClick={(e) => handleScheduledCardClick(e, post)}
               >
                 <CardContent className="space-y-3 p-4">
+                  {(() => {
+                    const activeTags = toPlatformTags(post.target_platform)
+                    const canAddLinkedIn = !activeTags.includes("linkedin")
+                    const canAddX = !activeTags.includes("x")
+                    return (
+                      <>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -345,13 +530,79 @@ export default function ReviewPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">{platformBadgeLabel(post.target_platform)}</Badge>
                       <Badge variant="secondary"><Clock3 className="mr-1 h-3.5 w-3.5" /> Scheduled</Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openPreview(post)
+                        }}
+                      >
+                        Open
+                      </Button>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Current slot: {post.scheduled_for ? new Date(post.scheduled_for).toLocaleString() : "Not set"}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {activeTags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="gap-1 pr-1">
+                        {platformName(tag)}
+                        <button
+                          type="button"
+                          className="ml-1 rounded px-1 text-xs hover:bg-muted"
+                          onClick={() => {
+                            const next = activeTags.filter((p) => p !== tag)
+                            void updateScheduledTargets(post.id, next)
+                          }}
+                          disabled={workingId === post.id}
+                          aria-label={`Remove ${platformName(tag)} target`}
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                    {canAddLinkedIn && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => void updateScheduledTargets(post.id, [...activeTags, "linkedin"])}
+                        disabled={workingId === post.id}
+                      >
+                        + LinkedIn
+                      </Button>
+                    )}
+                    {canAddX && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => void updateScheduledTargets(post.id, [...activeTags, "x"])}
+                        disabled={workingId === post.id}
+                      >
+                        + X
+                      </Button>
+                    )}
                   </div>
+                  {(() => {
+                    const tags = toPlatformTags(post.target_platform)
+                    const linkedinRequired = tags.includes("linkedin")
+                    const xRequired = tags.includes("x")
+                    const readyForDate =
+                      (!linkedinRequired || connections.linkedin_connected) &&
+                      (!xRequired || connections.x_connected)
+
+                    if (!readyForDate) {
+                      return <div className="text-sm text-destructive">Connect required channel(s) to show schedule slot</div>
+                    }
+
+                    return (
+                      <div className="text-sm text-muted-foreground">
+                        Current slot: {post.scheduled_for ? new Date(post.scheduled_for).toLocaleString() : "Not set"}
+                      </div>
+                    )
+                  })()}
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="min-w-[220px] flex-1">
                       <label className="mb-1 block text-xs text-muted-foreground">Change schedule</label>
@@ -361,7 +612,16 @@ export default function ReviewPage() {
                         onChange={(e) => setManualScheduleById((prev) => ({ ...prev, [post.id]: e.target.value }))}
                       />
                     </div>
-                    <Button variant="outline" className="bg-transparent" onClick={() => askConfirmation(post.id, "reschedule")} disabled={workingId === post.id}>
+                    <Button
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={() => askConfirmation(post.id, "reschedule")}
+                      disabled={
+                        workingId === post.id ||
+                        (toPlatformTags(post.target_platform).includes("linkedin") && !connections.linkedin_connected) ||
+                        (toPlatformTags(post.target_platform).includes("x") && !connections.x_connected)
+                      }
+                    >
                       <CalendarClock className="mr-2 h-4 w-4" /> Reschedule
                     </Button>
                     <Button
@@ -372,6 +632,9 @@ export default function ReviewPage() {
                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
                   </div>
+                      </>
+                    )
+                  })()}
                 </CardContent>
               </Card>
             ))
@@ -430,6 +693,54 @@ export default function ReviewPage() {
             <Button onClick={generateWeeklyPosts} disabled={isGeneratingWeek || !weekPersonaId}>
               {isGeneratingWeek ? "Generating..." : "Generate 7 Posts"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(previewPost)} onOpenChange={(open) => !open && setPreviewPost(null)}>
+        <DialogContent className="flex w-[95vw] max-w-2xl max-h-[85vh] flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6">
+            <DialogTitle>{previewPost?.topic || "Post Preview"}</DialogTitle>
+            <DialogDescription className="flex items-center gap-2">
+              <Badge variant="outline">{platformBadgeLabel(previewPost?.target_platform)}</Badge>
+              <span>{previewPost?.personas?.name || "Persona"}</span>
+            </DialogDescription>
+          </DialogHeader>
+          {previewPost && (
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+              <div className="space-y-3">
+              {(previewPost.target_platform === "linkedin" || previewPost.target_platform === "both" || !previewPost.target_platform) && (
+                <QueueLinkedInPreview
+                  name={previewPost.personas?.name || "Persona"}
+                  title={previewPost.personas?.title}
+                  content={previewPost.content}
+                />
+              )}
+              {(previewPost.target_platform === "x" || previewPost.target_platform === "both") && (
+                <QueueXPreview
+                  name={previewPost.personas?.name || "Persona"}
+                  content={previewPost.content}
+                />
+              )}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="shrink-0 border-t px-6 py-4">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!previewPost?.content) return
+                try {
+                  await navigator.clipboard.writeText(previewPost.content)
+                  toast.success("Post copied")
+                } catch {
+                  toast.error("Copy failed")
+                }
+              }}
+            >
+              Copy text
+            </Button>
+            <Button onClick={() => setPreviewPost(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

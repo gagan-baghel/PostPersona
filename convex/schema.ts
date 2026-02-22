@@ -15,6 +15,7 @@ export default defineSchema({
     default_persona_public: v.optional(v.boolean()),
     allow_profile_in_explore: v.optional(v.boolean()),
     posting_schedule: v.optional(v.any()),
+    auto_post_enabled: v.optional(v.boolean()),
     timezone: v.optional(v.string()),
     linkedin_connected: v.boolean(),
     linkedin_access_token: v.optional(v.string()),

@@ -125,6 +125,7 @@ export async function updateProfile(
         default_persona_public?: boolean
         allow_profile_in_explore?: boolean
         posting_schedule?: Record<string, string>
+        auto_post_enabled?: boolean
         timezone?: string
     },
 ): Promise<{ success: boolean; error?: string }> {

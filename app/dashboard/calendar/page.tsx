@@ -57,10 +57,14 @@ export default function CalendarPage() {
     const load = async () => {
       setLoading(true)
       try {
-        const response = await fetch("/api/posts?page=1&pageSize=250")
+        const response = await fetch("/api/posts/calendar", { cache: "no-store" })
         const data = await response.json().catch(() => [])
         if (response.ok && Array.isArray(data)) {
-          setPosts(data)
+          const safe = data.filter((post: CalendarPost) => {
+            const status = post.workflow_status || "draft"
+            return status === "scheduled" || status === "posted"
+          })
+          setPosts(safe)
         }
       } finally {
         setLoading(false)
@@ -71,8 +75,13 @@ export default function CalendarPage() {
   }, [])
 
   const postsByDay = useMemo(() => {
+    const visible = posts.filter((post) => {
+      const status = post.workflow_status || "draft"
+      return status === "scheduled" || status === "posted"
+    })
+
     const map = new Map<string, CalendarPost[]>()
-    for (const post of posts) {
+    for (const post of visible) {
       const ts = getEventTimestamp(post)
       if (!ts) continue
       const key = toDateKeyLocal(new Date(ts))
@@ -104,8 +113,8 @@ export default function CalendarPage() {
       <DayButton {...props} className={`${props.className ?? ""} h-full min-h-[112px] w-full items-start justify-start p-2`}>
         <div className="flex w-full flex-col gap-1">
           <div className="text-xs font-semibold">{props.day.date.getDate()}</div>
-          {entries.slice(0, 2).map((entry) => (
-            <div key={entry.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-left text-[10px] leading-tight">
+          {entries.slice(0, 2).map((entry, index) => (
+            <div key={entry.id || `${key}-${entry.topic}-${index}`} className="rounded-sm bg-muted px-1.5 py-0.5 text-left text-[10px] leading-tight">
               <div className="line-clamp-1 font-medium">{entry.topic}</div>
             </div>
           ))}
@@ -190,10 +199,10 @@ export default function CalendarPage() {
               <p className="text-sm text-muted-foreground">No entries.</p>
             ) : (
               <div className="space-y-2">
-                {selectedEntries.map((entry) => {
+                {selectedEntries.map((entry, index) => {
                   const ts = getEventTimestamp(entry)
                   return (
-                    <div key={entry.id} className="rounded-lg border p-2.5">
+                    <div key={entry.id || `${selectedKey}-${entry.topic}-${index}`} className="rounded-lg border p-2.5">
                       <div className="mb-1 flex items-center gap-1.5">
                         <Badge variant={statusBadgeVariant(entry.workflow_status)}>{entry.workflow_status || "draft"}</Badge>
                         <Badge variant="outline">{entry.target_platform || "linkedin"}</Badge>

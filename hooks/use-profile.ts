@@ -13,6 +13,7 @@ interface Profile {
   default_persona_public?: boolean
   allow_profile_in_explore?: boolean
   posting_schedule?: Record<string, string> | null
+  auto_post_enabled?: boolean
   timezone?: string | null
   linkedin_connected?: boolean
   x_connected?: boolean

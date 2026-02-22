@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [fullName, setFullName] = useState("")
   const [defaultPublic, setDefaultPublic] = useState(false)
   const [showInExplore, setShowInExplore] = useState(true)
+  const [autoPostEnabled, setAutoPostEnabled] = useState(false)
   const [timezone, setTimezone] = useState("UTC")
   const [postingSchedule, setPostingSchedule] = useState<Record<string, string>>({
     monday: "09:30",
@@ -56,6 +57,7 @@ export default function SettingsPage() {
     setFullName(profile.full_name || "")
     setDefaultPublic(Boolean(profile.default_persona_public))
     setShowInExplore(profile.allow_profile_in_explore !== false)
+    setAutoPostEnabled(Boolean(profile.auto_post_enabled))
     if (profile.timezone) setTimezone(profile.timezone)
     if (profile.posting_schedule && typeof profile.posting_schedule === "object") {
       setPostingSchedule((prev) => ({ ...prev, ...(profile.posting_schedule as Record<string, string>) }))
@@ -83,6 +85,7 @@ export default function SettingsPage() {
     const channels = [profile?.linkedin_connected ? 1 : 0, profile?.x_connected ? 1 : 0]
     return channels.reduce((a, b) => a + b, 0)
   }, [profile?.linkedin_connected, profile?.x_connected])
+  const canEnableAutoPost = Boolean(profile?.linkedin_connected || profile?.x_connected)
 
   const handleSaveProfile = async () => {
     if (!user) return
@@ -104,6 +107,7 @@ export default function SettingsPage() {
       default_persona_public: defaultPublic,
       allow_profile_in_explore: showInExplore,
       posting_schedule: postingSchedule,
+      auto_post_enabled: canEnableAutoPost ? autoPostEnabled : false,
       timezone,
     })
     if (result.success) {
@@ -284,6 +288,16 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">Let community users discover your profile/personas.</p>
               </div>
               <Switch checked={showInExplore} onCheckedChange={setShowInExplore} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Automatic post</p>
+                <p className="text-xs text-muted-foreground">
+                  Auto-publish scheduled queue when due.
+                  {!canEnableAutoPost ? " Connect LinkedIn or X first." : ""}
+                </p>
+              </div>
+              <Switch checked={canEnableAutoPost ? autoPostEnabled : false} onCheckedChange={setAutoPostEnabled} disabled={!canEnableAutoPost} />
             </div>
 
             <div className="space-y-2">

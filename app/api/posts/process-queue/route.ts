@@ -77,6 +77,10 @@ export async function POST(request: Request) {
       convexQuery<any[]>("app:listPostsByStatus", { userId, statuses: ["scheduled"] }),
     ])
 
+    if (!profile?.auto_post_enabled) {
+      return NextResponse.json({ success: true, processed: 0, reason: "auto_post_disabled" })
+    }
+
     const now = Date.now()
     const nextInQueue = (scheduled ?? []).sort((a, b) => {
       const aq = typeof a.queue_position === "number" ? a.queue_position : Number.MAX_SAFE_INTEGER
@@ -95,6 +99,17 @@ export async function POST(request: Request) {
 
     const next = nextInQueue
     const target = next.target_platform || "linkedin"
+    const canLinkedin = profile?.linkedin_connected && profile?.linkedin_access_token
+    const canX = profile?.x_connected && profile?.x_access_token
+    if (target === "linkedin" && !canLinkedin) {
+      return NextResponse.json({ success: true, processed: 0, reason: "linkedin_not_connected" })
+    }
+    if (target === "x" && !canX) {
+      return NextResponse.json({ success: true, processed: 0, reason: "x_not_connected" })
+    }
+    if (target === "both" && !canLinkedin && !canX) {
+      return NextResponse.json({ success: true, processed: 0, reason: "channels_not_connected" })
+    }
     let linkedinPostId: string | undefined
     let xPostId: string | undefined
     let postedLinkedin = false

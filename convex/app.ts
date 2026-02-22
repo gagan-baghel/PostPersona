@@ -158,6 +158,7 @@ export const createUser = mutationGeneric({
       default_persona_public: false,
       allow_profile_in_explore: true,
       posting_schedule: DEFAULT_POSTING_SCHEDULE,
+      auto_post_enabled: false,
       timezone: "UTC",
       linkedin_connected: false,
       x_connected: false,
@@ -183,9 +184,10 @@ export const updateProfile = mutationGeneric({
     defaultPersonaPublic: v.optional(v.boolean()),
     allowProfileInExplore: v.optional(v.boolean()),
     postingSchedule: v.optional(v.any()),
+    autoPostEnabled: v.optional(v.boolean()),
     timezone: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, fullName, defaultPersonaPublic, allowProfileInExplore, postingSchedule, timezone }) => {
+  handler: async (ctx, { userId, fullName, defaultPersonaPublic, allowProfileInExplore, postingSchedule, autoPostEnabled, timezone }) => {
     const user = await ctx.db.get(userId)
     if (!user) return { ok: false, error: "USER_NOT_FOUND" as const }
 
@@ -199,6 +201,7 @@ export const updateProfile = mutationGeneric({
         default_persona_public: defaultPersonaPublic ?? profile.default_persona_public ?? false,
         allow_profile_in_explore: allowProfileInExplore ?? profile.allow_profile_in_explore ?? true,
         posting_schedule: postingSchedule ?? profile.posting_schedule ?? DEFAULT_POSTING_SCHEDULE,
+        auto_post_enabled: autoPostEnabled ?? profile.auto_post_enabled ?? false,
         timezone: timezone ?? profile.timezone ?? "UTC",
         updated_at: Date.now(),
       })
@@ -584,6 +587,25 @@ export const setPostWorkflow = mutationGeneric({
   },
 })
 
+export const setPostTargetPlatform = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    targetPlatform: v.string(),
+  },
+  handler: async (ctx, { userId, postId, targetPlatform }) => {
+    const post = await ctx.db.get(postId)
+    if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
+
+    await ctx.db.patch(postId, {
+      target_platform: targetPlatform,
+      updated_at: Date.now(),
+    })
+
+    return { ok: true }
+  },
+})
+
 export const approvePostAndAutoSchedule = mutationGeneric({
   args: {
     userId: v.id("users"),
@@ -682,10 +704,12 @@ export const setLinkedinConnection = mutationGeneric({
     const profile = await ctx.db.query("profiles").withIndex("by_user_id", (q) => q.eq("user_id", userId)).unique()
     if (!profile) return { ok: false, error: "PROFILE_NOT_FOUND" as const }
 
+    const xStillConnected = profile.x_connected === true
     await ctx.db.patch(profile._id, {
       linkedin_connected: connected,
       linkedin_access_token: accessToken,
       linkedin_profile_id: profileId,
+      auto_post_enabled: connected ? profile.auto_post_enabled : xStillConnected ? profile.auto_post_enabled : false,
       updated_at: Date.now(),
     })
 
@@ -705,11 +729,13 @@ export const setXConnection = mutationGeneric({
     const profile = await ctx.db.query("profiles").withIndex("by_user_id", (q) => q.eq("user_id", userId)).unique()
     if (!profile) return { ok: false, error: "PROFILE_NOT_FOUND" as const }
 
+    const liStillConnected = profile.linkedin_connected === true
     await ctx.db.patch(profile._id, {
       x_connected: connected,
       x_access_token: accessToken,
       x_user_id: xUserId,
       x_username: xUsername,
+      auto_post_enabled: connected ? profile.auto_post_enabled : liStillConnected ? profile.auto_post_enabled : false,
       updated_at: Date.now(),
     })
 
@@ -736,6 +762,9 @@ export const backfillProfiles = mutationGeneric({
       }
       if (!profile.posting_schedule) {
         patch.posting_schedule = DEFAULT_POSTING_SCHEDULE
+      }
+      if (typeof profile.auto_post_enabled !== "boolean") {
+        patch.auto_post_enabled = false
       }
       if (typeof profile.timezone !== "string") {
         patch.timezone = "UTC"
