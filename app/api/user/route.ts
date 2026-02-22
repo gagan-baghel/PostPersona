@@ -26,6 +26,8 @@ export async function GET(request: Request) {
       coins: profile?.coins ?? 0,
       default_persona_public: profile?.default_persona_public ?? false,
       allow_profile_in_explore: profile?.allow_profile_in_explore ?? true,
+      posting_schedule: profile?.posting_schedule ?? null,
+      timezone: profile?.timezone ?? "UTC",
       linkedin_connected: profile?.linkedin_connected ?? false,
       x_connected: profile?.x_connected ?? false,
       x_username: profile?.x_username ?? null,
@@ -50,12 +52,17 @@ export async function PATCH(request: Request) {
     const defaultPersonaPublic = typeof body.default_persona_public === "boolean" ? body.default_persona_public : undefined
     const allowProfileInExplore =
       typeof body.allow_profile_in_explore === "boolean" ? body.allow_profile_in_explore : undefined
+    const postingSchedule =
+      body.posting_schedule && typeof body.posting_schedule === "object" ? body.posting_schedule : undefined
+    const timezone = typeof body.timezone === "string" ? body.timezone : undefined
 
     const result = await convexMutation<any>("app:updateProfile", {
       userId,
       fullName,
       defaultPersonaPublic,
       allowProfileInExplore,
+      postingSchedule,
+      timezone,
     })
 
     if (!result?.ok) {

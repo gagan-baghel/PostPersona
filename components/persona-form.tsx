@@ -16,6 +16,7 @@ interface Persona {
     title: string | null
     personality: string
     writing_style: string
+    training_posts?: string[]
     avatar_url: string | null
 }
 
@@ -24,6 +25,7 @@ export function PersonaForm({ persona, onSuccess }: { persona?: Persona; onSucce
     const [title, setTitle] = useState(persona?.title || "")
     const [personality, setPersonality] = useState(persona?.personality || "")
     const [writingStyle, setWritingStyle] = useState(persona?.writing_style || "")
+    const [trainingPostsText, setTrainingPostsText] = useState((persona?.training_posts ?? []).join("\n\n---\n\n"))
     const [avatarUrl, setAvatarUrl] = useState(persona?.avatar_url || "")
     const [error, setError] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(false)
@@ -35,6 +37,15 @@ export function PersonaForm({ persona, onSuccess }: { persona?: Persona; onSucce
         setError(null)
 
         try {
+            const trainingPosts = trainingPostsText
+                .split(/\n\s*---\s*\n/g)
+                .map((p) => p.trim())
+                .filter(Boolean)
+
+            if (trainingPosts.length > 0 && (trainingPosts.length < 2 || trainingPosts.length > 10)) {
+                throw new Error("Please provide 2 to 10 high-performing example posts (or leave it empty).")
+            }
+
             if (persona) {
                 const response = await fetch(`/api/personas/${persona.id}`, {
                     method: "PATCH",
@@ -44,6 +55,7 @@ export function PersonaForm({ persona, onSuccess }: { persona?: Persona; onSucce
                         title: title || undefined,
                         personality,
                         writing_style: writingStyle,
+                        training_posts: trainingPosts,
                         avatar_url: avatarUrl || undefined,
                     }),
                 })
@@ -60,6 +72,7 @@ export function PersonaForm({ persona, onSuccess }: { persona?: Persona; onSucce
                         title: title || undefined,
                         personality,
                         writing_style: writingStyle,
+                        training_posts: trainingPosts,
                         avatar_url: avatarUrl || undefined,
                     }),
                 })
@@ -149,6 +162,20 @@ export function PersonaForm({ persona, onSuccess }: { persona?: Persona; onSucce
                             onChange={(e) => setAvatarUrl(e.target.value)}
                         />
                         <p className="text-xs text-muted-foreground">Optional: Add a profile image for this persona</p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="trainingPosts">Winning Posts (2 to 10)</Label>
+                        <Textarea
+                            id="trainingPosts"
+                            placeholder="Paste one high-performing post...\n\n---\n\nPaste another post..."
+                            value={trainingPostsText}
+                            onChange={(e) => setTrainingPostsText(e.target.value)}
+                            rows={10}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Add 2 to 10 of your best posts, separated by `---`. These are used to fine-tune generation style.
+                        </p>
                     </div>
                 </div>
             </div>

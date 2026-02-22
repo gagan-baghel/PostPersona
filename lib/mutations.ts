@@ -120,7 +120,13 @@ export async function deductCoinsWithUpdate(amount: number, currentCoins: number
 
 export async function updateProfile(
     _userId: string,
-    updates: { full_name?: string; default_persona_public?: boolean; allow_profile_in_explore?: boolean },
+    updates: {
+        full_name?: string
+        default_persona_public?: boolean
+        allow_profile_in_explore?: boolean
+        posting_schedule?: Record<string, string>
+        timezone?: string
+    },
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const response = await fetch('/api/user', {

@@ -17,7 +17,9 @@ export default function HistoryPage() {
 
   const filtered = useMemo(() => {
     const lower = query.toLowerCase().trim()
-    return posts.filter((post) => {
+    return posts
+      .filter((post) => !["review", "scheduled", "rejected"].includes(post.workflow_status || "draft"))
+      .filter((post) => {
       const matchText =
         post.topic.toLowerCase().includes(lower) ||
         post.content.toLowerCase().includes(lower) ||
@@ -29,8 +31,8 @@ export default function HistoryPage() {
         (platform === "x" && post.posted_to_x) ||
         (platform === "drafts" && !post.posted_to_linkedin && !post.posted_to_x)
 
-      return matchText && matchPlatform
-    })
+        return matchText && matchPlatform
+      })
   }, [posts, query, platform])
 
   if (isLoading) {

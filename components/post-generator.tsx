@@ -7,14 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useCoins } from "@/hooks/use-coins"
-import { useProfile } from "@/hooks/use-profile"
-import { connectLinkedIn, connectX } from "@/lib/mutations"
 import { toast } from "sonner"
 import { handleDownloadImage } from "@/utils/download-image"
-import { Check, ImagePlus, Linkedin, Loader2, Save, Sparkles, Wand2, X } from "lucide-react"
+import { ImagePlus, Loader2, Save, Send, Wand2 } from "lucide-react"
 
 interface Persona {
   id: string
@@ -22,6 +19,7 @@ interface Persona {
   title: string | null
   personality: string
   writing_style: string
+  training_posts?: string[]
   avatar_url: string | null
 }
 
@@ -36,21 +34,6 @@ const IMAGE_PRESETS = [
 
 type Step = 1 | 2 | 3
 
-function StepPill({ step, active, done, label }: { step: number; active: boolean; done: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
-          active ? "border-primary bg-primary text-primary-foreground" : done ? "border-primary/40 bg-primary/10" : ""
-        }`}
-      >
-        {done ? <Check className="h-4 w-4" /> : step}
-      </div>
-      <span className={`text-sm ${active ? "font-medium" : "text-muted-foreground"}`}>{label}</span>
-    </div>
-  )
-}
-
 export function PostGenerator({
   avatars,
   selectedAvatar,
@@ -60,7 +43,6 @@ export function PostGenerator({
 }) {
   const router = useRouter()
   const { coins, mutateCoins } = useCoins()
-  const { profile } = useProfile()
 
   const [step, setStep] = useState<Step>(1)
   const [personaId, setPersonaId] = useState(selectedAvatar?.id || avatars[0]?.id || "")
@@ -72,11 +54,12 @@ export function PostGenerator({
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null)
   const [generatedImagePublicId, setGeneratedImagePublicId] = useState<string | null>(null)
 
+  const [targetPlatform, setTargetPlatform] = useState<"linkedin" | "x" | "both">("linkedin")
+
   const [isGeneratingPost, setIsGeneratingPost] = useState(false)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isPostingLinkedIn, setIsPostingLinkedIn] = useState(false)
-  const [isPostingX, setIsPostingX] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false)
 
   const selectedPersona = useMemo(() => avatars.find((a) => a.id === personaId), [avatars, personaId])
 
@@ -90,9 +73,10 @@ export function PostGenerator({
       cloudinarySecureUrl: generatedImageUrl,
       imagePrompt: imagePrompt || null,
       imagePreset: generatedImageUrl ? imagePreset : null,
-      aiModelVersion: "DeepSeek-V3.1-Nex-N1",
+      aiModelVersion: "gemini-2.0-flash",
+      targetPlatform,
     }),
-    [personaId, topic, generatedPost, generatedImageUrl, generatedImagePublicId, imagePrompt, imagePreset],
+    [personaId, topic, generatedPost, generatedImageUrl, generatedImagePublicId, imagePrompt, imagePreset, targetPlatform],
   )
 
   const handleGeneratePost = useCallback(async () => {
@@ -112,8 +96,8 @@ export function PostGenerator({
       if (typeof data.remainingCoins === "number") {
         await mutateCoins(data.remainingCoins)
       }
-      setStep(2)
-      toast.success("Post generated")
+      setStep(3)
+      toast.success("Draft generated")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to generate post")
     } finally {
@@ -145,6 +129,7 @@ export function PostGenerator({
         await mutateCoins(data.remainingCoins)
       }
       toast.success("Image generated")
+      setStep(3)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to generate image")
     } finally {
@@ -154,121 +139,57 @@ export function PostGenerator({
 
   const handleSaveDraft = useCallback(async () => {
     if (!payload.personaId || !payload.topic || !payload.content) return
-    setIsSaving(true)
+    setIsSavingDraft(true)
 
     try {
       const response = await fetch("/api/save-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, workflowStatus: "draft" }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || "Failed to save draft")
 
-      toast.success("Saved to history")
+      toast.success("Saved as draft")
       router.push("/dashboard/history")
-      router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save draft")
     } finally {
-      setIsSaving(false)
+      setIsSavingDraft(false)
     }
   }, [payload, router])
 
-  const connectIfNeeded = useCallback(async (platform: "linkedin" | "x") => {
-    if (platform === "linkedin") {
-      if (profile?.linkedin_connected) return true
-      const result = await connectLinkedIn("/dashboard/generate")
-      if (!result.success || !result.authUrl) {
-        toast.error(result.error || "Failed to start LinkedIn connect")
-        return false
-      }
-      window.location.href = result.authUrl
-      return false
-    }
-
-    if (profile?.x_connected) return true
-    const result = await connectX("/dashboard/generate")
-    if (!result.success || !result.authUrl) {
-      toast.error(result.error || "Failed to start X connect")
-      return false
-    }
-    window.location.href = result.authUrl
-    return false
-  }, [profile?.linkedin_connected, profile?.x_connected])
-
-  const handlePostToLinkedIn = useCallback(async () => {
+  const handleSendToReview = useCallback(async () => {
     if (!payload.personaId || !payload.topic || !payload.content) return
-    setIsPostingLinkedIn(true)
+    setIsSubmittingReview(true)
 
     try {
-      const ready = await connectIfNeeded("linkedin")
-      if (!ready) return
-
-      const response = await fetch("/api/post-to-linkedin", {
+      const response = await fetch("/api/posts/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
       const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || "LinkedIn publish failed")
+      if (!response.ok) throw new Error(data.error || "Failed to submit for review")
 
-      toast.success("Posted to LinkedIn")
-      router.push("/dashboard/history")
-      router.refresh()
+      toast.success("Sent to Review Queue")
+      router.push("/dashboard/review")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "LinkedIn publish failed")
+      toast.error(error instanceof Error ? error.message : "Failed to send for review")
     } finally {
-      setIsPostingLinkedIn(false)
+      setIsSubmittingReview(false)
     }
-  }, [payload, connectIfNeeded, router])
-
-  const handlePostToX = useCallback(async () => {
-    if (!payload.personaId || !payload.topic || !payload.content) return
-    setIsPostingX(true)
-
-    try {
-      const ready = await connectIfNeeded("x")
-      if (!ready) return
-
-      const response = await fetch("/api/post-to-x", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || "X publish failed")
-
-      toast.success("Posted to X")
-      router.push("/dashboard/history")
-      router.refresh()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "X publish failed")
-    } finally {
-      setIsPostingX(false)
-    }
-  }, [payload, connectIfNeeded, router])
+  }, [payload, router])
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
-          <div className="flex items-center gap-4">
-            <StepPill step={1} active={step === 1} done={step > 1} label="Write" />
-            <StepPill step={2} active={step === 2} done={step > 2} label="Visual" />
-            <StepPill step={3} active={step === 3} done={false} label="Publish" />
-          </div>
-          <Badge variant="secondary" className="text-sm">{coins} coins</Badge>
-        </CardContent>
-      </Card>
-
+    <div className="space-y-4">
       {step === 1 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" />Generate Post</CardTitle>
-            <CardDescription>Pick persona and topic to generate your content.</CardDescription>
+            <CardDescription>Persona + topic.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Persona</Label>
               <Select value={personaId} onValueChange={setPersonaId}>
@@ -279,22 +200,11 @@ export function PostGenerator({
                   ))}
                 </SelectContent>
               </Select>
-              {selectedPersona && (
-                <div className="rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
-                  <p><span className="font-medium text-foreground">Personality:</span> {selectedPersona.personality}</p>
-                  <p><span className="font-medium text-foreground">Style:</span> {selectedPersona.writing_style}</p>
-                </div>
-              )}
             </div>
 
             <div className="space-y-2">
               <Label>Topic</Label>
-              <Textarea
-                rows={4}
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder="What do you want to post about?"
-              />
+              <Textarea rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What do you want to post about?" />
             </div>
 
             {generatedPost && (
@@ -309,11 +219,11 @@ export function PostGenerator({
             <div className="flex flex-wrap gap-3">
               <Button onClick={handleGeneratePost} disabled={isGeneratingPost || !topic.trim() || !personaId || coins < 3}>
                 {isGeneratingPost && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {generatedPost ? "Regenerate (3 coins)" : "Generate (3 coins)"}
+                {generatedPost ? "Regenerate (3 coins)" : "Generate Draft (3 coins)"}
               </Button>
               {generatedPost && (
-                <Button variant="outline" className="bg-transparent" onClick={() => setStep(2)}>
-                  Next: Add image
+                <Button variant="outline" className="bg-transparent" onClick={() => setStep(3)}>
+                  Continue to review
                 </Button>
               )}
             </div>
@@ -324,8 +234,8 @@ export function PostGenerator({
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ImagePlus className="h-5 w-5 text-primary" />Create Visual</CardTitle>
-            <CardDescription>Optional image generation for higher engagement.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><ImagePlus className="h-5 w-5 text-primary" />Generate Image (Explicit)</CardTitle>
+            <CardDescription>Optional visual.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
@@ -358,7 +268,7 @@ export function PostGenerator({
                 {isGeneratingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {generatedImageUrl ? "Regenerate (5 coins)" : "Generate image (5 coins)"}
               </Button>
-              <Button variant="outline" className="bg-transparent" onClick={() => setStep(3)}>Continue to publish</Button>
+              <Button variant="outline" className="bg-transparent" onClick={() => setStep(3)}>Back to review</Button>
             </div>
           </CardContent>
         </Card>
@@ -367,10 +277,10 @@ export function PostGenerator({
       {step === 3 && selectedPersona && (
         <div className="grid gap-6 xl:grid-cols-5">
           <Card className="xl:col-span-3">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />Preview</CardTitle>
-              <CardDescription>Final check before saving or publishing.</CardDescription>
-            </CardHeader>
+          <CardHeader>
+            <CardTitle>Draft Preview</CardTitle>
+            <CardDescription>Final check before sending.</CardDescription>
+          </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold">
@@ -384,37 +294,39 @@ export function PostGenerator({
               <div className="rounded-lg border p-4">
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{generatedPost}</p>
               </div>
-              {generatedImageUrl && (
-                <img src={generatedImageUrl} alt="Preview visual" className="max-h-96 w-full rounded-lg border object-contain bg-muted" />
-              )}
+              {generatedImageUrl && <img src={generatedImageUrl} alt="Preview visual" className="max-h-96 w-full rounded-lg border object-contain bg-muted" />}
             </CardContent>
           </Card>
 
           <Card className="xl:col-span-2 h-fit">
             <CardHeader>
-              <CardTitle>Actions</CardTitle>
-              <CardDescription>Save as draft or publish directly.</CardDescription>
+              <CardTitle>Queue Controls</CardTitle>
+              <CardDescription>Save draft or send to review.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full" variant="outline" onClick={handleSaveDraft} disabled={isSaving}>
-                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Draft
-              </Button>
-
-              <Button className="w-full" onClick={handlePostToLinkedIn} disabled={isPostingLinkedIn}>
-                {isPostingLinkedIn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Linkedin className="mr-2 h-4 w-4" />}
-                {profile?.linkedin_connected ? "Post to LinkedIn" : "Connect + Post to LinkedIn"}
-              </Button>
-
-              <Button className="w-full" variant="secondary" onClick={handlePostToX} disabled={isPostingX}>
-                {isPostingX ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
-                {profile?.x_connected ? "Post to X" : "Connect + Post to X"}
-              </Button>
-
-              <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
-                <p>Connected:</p>
-                <p>LinkedIn: {profile?.linkedin_connected ? "Yes" : "No"}</p>
-                <p>X: {profile?.x_connected ? `Yes${profile.x_username ? ` (@${profile.x_username})` : ""}` : "No"}</p>
+              <div className="space-y-2">
+                <Label>Target platform</Label>
+                <Select value={targetPlatform} onValueChange={(v: "linkedin" | "x" | "both") => setTargetPlatform(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="linkedin">LinkedIn</SelectItem>
+                    <SelectItem value="x">X</SelectItem>
+                    <SelectItem value="both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              <Button className="w-full" variant="outline" onClick={() => setStep(2)}>
+                <ImagePlus className="mr-2 h-4 w-4" /> Generate image (optional)
+              </Button>
+
+              <Button className="w-full" variant="outline" onClick={handleSaveDraft} disabled={isSavingDraft}>
+                {isSavingDraft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Draft
+              </Button>
+
+              <Button className="w-full" onClick={handleSendToReview} disabled={isSubmittingReview}>
+                {isSubmittingReview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Send to Review Queue
+              </Button>
             </CardContent>
           </Card>
         </div>

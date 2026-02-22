@@ -2,6 +2,13 @@ import { mutationGeneric, queryGeneric } from "convex/server"
 import { v } from "convex/values"
 
 const DEFAULT_COINS = 100
+const DEFAULT_POSTING_SCHEDULE = {
+  monday: "09:30",
+  tuesday: "10:00",
+  wednesday: "09:45",
+  thursday: "10:15",
+  friday: "09:30",
+}
 
 const DEFAULT_PERSONAS = [
   {
@@ -11,6 +18,7 @@ const DEFAULT_PERSONAS = [
       "Professional, polished, and authoritative. Values clarity, efficiency, and results. Speaks with confidence and expertise.",
     writing_style:
       "Clear and concise sentences. Uses data and facts. Professional tone with occasional strategic insights.",
+    training_posts: [],
     avatar_url: undefined,
   },
   {
@@ -20,6 +28,7 @@ const DEFAULT_PERSONAS = [
       "Visionary, ambitious, and inspiring. Passionate about innovation and building the future.",
     writing_style:
       "Storytelling approach. Personal anecdotes mixed with insights. Energetic and motivational.",
+    training_posts: [],
     avatar_url: undefined,
   },
   {
@@ -29,9 +38,63 @@ const DEFAULT_PERSONAS = [
       "Insightful, analytical, and forward-thinking. Challenges conventional wisdom and sparks meaningful discussions.",
     writing_style:
       "Deep-dive analysis. Uses frameworks and practical examples. Minimal fluff.",
+    training_posts: [],
     avatar_url: undefined,
   },
 ]
+
+function toMinuteOfDay(time: string): number {
+  const [h, m] = time.split(":").map(Number)
+  return Math.max(0, Math.min(23, h || 0)) * 60 + Math.max(0, Math.min(59, m || 0))
+}
+
+function getUpcomingScheduleTimes(count: number, schedule: Record<string, string>, nowTs: number): number[] {
+  const dayKeys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const
+  const allowed = new Set(["monday", "tuesday", "wednesday", "thursday", "friday"])
+  const slots: number[] = []
+
+  for (let offset = 0; offset < 365 && slots.length < count; offset++) {
+    const candidate = new Date(nowTs + offset * 24 * 60 * 60 * 1000)
+    const dayName = dayKeys[candidate.getUTCDay()]
+    if (!allowed.has(dayName)) continue
+
+    const configured = schedule[dayName] || DEFAULT_POSTING_SCHEDULE[dayName as keyof typeof DEFAULT_POSTING_SCHEDULE]
+    const minuteOfDay = toMinuteOfDay(configured)
+    candidate.setUTCHours(Math.floor(minuteOfDay / 60), minuteOfDay % 60, 0, 0)
+
+    if (candidate.getTime() > nowTs) slots.push(candidate.getTime())
+  }
+
+  return slots
+}
+
+async function resequenceScheduledQueue(ctx: any, userId: any, baseTs = Date.now()) {
+  const [profile, posts] = await Promise.all([
+    ctx.db.query("profiles").withIndex("by_user_id", (q: any) => q.eq("user_id", userId)).unique(),
+    ctx.db.query("posts").withIndex("by_user_id", (q: any) => q.eq("user_id", userId)).collect(),
+  ])
+
+  const scheduled = posts
+    .filter((p: any) => (p.workflow_status ?? "draft") === "scheduled")
+    .sort((a: any, b: any) => {
+      const aq = typeof a.queue_position === "number" ? a.queue_position : Number.MAX_SAFE_INTEGER
+      const bq = typeof b.queue_position === "number" ? b.queue_position : Number.MAX_SAFE_INTEGER
+      if (aq !== bq) return aq - bq
+      const at = typeof a.scheduled_for === "number" ? a.scheduled_for : a.created_at
+      const bt = typeof b.scheduled_for === "number" ? b.scheduled_for : b.created_at
+      return at - bt
+    })
+
+  const schedule = (profile?.posting_schedule as Record<string, string> | undefined) ?? DEFAULT_POSTING_SCHEDULE
+  const slots = getUpcomingScheduleTimes(scheduled.length, schedule, baseTs)
+
+  for (let i = 0; i < scheduled.length; i++) {
+    await ctx.db.patch(scheduled[i]._id, {
+      queue_position: i + 1,
+      scheduled_for: slots[i] ?? (baseTs + (i + 1) * 24 * 60 * 60 * 1000),
+    })
+  }
+}
 
 async function ensureDefaultPersonas(ctx: any) {
   const existing = await ctx.db
@@ -94,6 +157,8 @@ export const createUser = mutationGeneric({
       coins: DEFAULT_COINS,
       default_persona_public: false,
       allow_profile_in_explore: true,
+      posting_schedule: DEFAULT_POSTING_SCHEDULE,
+      timezone: "UTC",
       linkedin_connected: false,
       x_connected: false,
       created_at: now,
@@ -117,8 +182,10 @@ export const updateProfile = mutationGeneric({
     fullName: v.optional(v.string()),
     defaultPersonaPublic: v.optional(v.boolean()),
     allowProfileInExplore: v.optional(v.boolean()),
+    postingSchedule: v.optional(v.any()),
+    timezone: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, fullName, defaultPersonaPublic, allowProfileInExplore }) => {
+  handler: async (ctx, { userId, fullName, defaultPersonaPublic, allowProfileInExplore, postingSchedule, timezone }) => {
     const user = await ctx.db.get(userId)
     if (!user) return { ok: false, error: "USER_NOT_FOUND" as const }
 
@@ -131,6 +198,8 @@ export const updateProfile = mutationGeneric({
       await ctx.db.patch(profile._id, {
         default_persona_public: defaultPersonaPublic ?? profile.default_persona_public ?? false,
         allow_profile_in_explore: allowProfileInExplore ?? profile.allow_profile_in_explore ?? true,
+        posting_schedule: postingSchedule ?? profile.posting_schedule ?? DEFAULT_POSTING_SCHEDULE,
+        timezone: timezone ?? profile.timezone ?? "UTC",
         updated_at: Date.now(),
       })
     }
@@ -203,6 +272,7 @@ export const createPersona = mutationGeneric({
     title: v.optional(v.string()),
     personality: v.string(),
     writing_style: v.string(),
+    training_posts: v.optional(v.array(v.string())),
     avatar_url: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -213,6 +283,7 @@ export const createPersona = mutationGeneric({
       title: args.title,
       personality: args.personality,
       writing_style: args.writing_style,
+      training_posts: args.training_posts,
       avatar_url: args.avatar_url,
       is_public: false,
       is_app_provided: false,
@@ -236,6 +307,7 @@ export const updatePersona = mutationGeneric({
     title: v.optional(v.string()),
     personality: v.string(),
     writing_style: v.string(),
+    training_posts: v.optional(v.array(v.string())),
     avatar_url: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -249,6 +321,7 @@ export const updatePersona = mutationGeneric({
       title: args.title,
       personality: args.personality,
       writing_style: args.writing_style,
+      training_posts: args.training_posts,
       avatar_url: args.avatar_url,
       updated_at: Date.now(),
     })
@@ -325,6 +398,7 @@ export const clonePersona = mutationGeneric({
       title: original.title,
       personality: original.personality,
       writing_style: original.writing_style,
+      training_posts: original.training_posts,
       avatar_url: original.avatar_url,
       is_public: false,
       is_app_provided: false,
@@ -357,6 +431,13 @@ export const listPosts = queryGeneric({
           id: post._id,
           posted_to_linkedin: post.posted_to_linkedin ?? false,
           posted_to_x: post.posted_to_x ?? false,
+          workflow_status: post.workflow_status ?? "draft",
+          target_platform: post.target_platform ?? "linkedin",
+          scheduled_for: post.scheduled_for ?? null,
+          approved_at: post.approved_at ?? null,
+          posted_at: post.posted_at ?? null,
+          review_notes: post.review_notes ?? null,
+          queue_position: post.queue_position ?? null,
           personas: persona
             ? {
                 id: persona._id,
@@ -389,6 +470,11 @@ export const createPost = mutationGeneric({
     linkedinPostId: v.optional(v.string()),
     postedToX: v.optional(v.boolean()),
     xPostId: v.optional(v.string()),
+    workflowStatus: v.optional(v.string()),
+    targetPlatform: v.optional(v.string()),
+    scheduledFor: v.optional(v.number()),
+    reviewNotes: v.optional(v.string()),
+    queuePosition: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (args.personaId) {
@@ -413,6 +499,11 @@ export const createPost = mutationGeneric({
       linkedin_post_id: args.linkedinPostId,
       posted_to_x: args.postedToX,
       x_post_id: args.xPostId,
+      workflow_status: args.workflowStatus ?? "draft",
+      target_platform: args.targetPlatform ?? "linkedin",
+      scheduled_for: args.scheduledFor,
+      review_notes: args.reviewNotes,
+      queue_position: args.queuePosition,
       created_at: Date.now(),
     })
 
@@ -432,6 +523,150 @@ export const deletePost = mutationGeneric({
     }
 
     await ctx.db.delete(postId)
+    return { ok: true }
+  },
+})
+
+export const listPostsByStatus = queryGeneric({
+  args: {
+    userId: v.id("users"),
+    statuses: v.array(v.string()),
+  },
+  handler: async (ctx, { userId, statuses }) => {
+    const posts = await ctx.db.query("posts").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect()
+    return posts
+      .filter((post) => statuses.includes(post.workflow_status ?? "draft"))
+      .sort((a, b) => {
+        const aQueue = typeof a.queue_position === "number" ? a.queue_position : Number.MAX_SAFE_INTEGER
+        const bQueue = typeof b.queue_position === "number" ? b.queue_position : Number.MAX_SAFE_INTEGER
+        if (aQueue !== bQueue) return aQueue - bQueue
+        const aTs = a.scheduled_for ?? a.created_at
+        const bTs = b.scheduled_for ?? b.created_at
+        return aTs - bTs
+      })
+  },
+})
+
+export const getPostByIdForUser = queryGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+  },
+  handler: async (ctx, { userId, postId }) => {
+    const post = await ctx.db.get(postId)
+    if (!post || post.user_id !== userId) return null
+    return post
+  },
+})
+
+export const setPostWorkflow = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    status: v.string(),
+    reviewNotes: v.optional(v.string()),
+    scheduledFor: v.optional(v.number()),
+  },
+  handler: async (ctx, { userId, postId, status, reviewNotes, scheduledFor }) => {
+    const post = await ctx.db.get(postId)
+    if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
+
+    const patch: Record<string, any> = {
+      workflow_status: status,
+      review_notes: reviewNotes,
+    }
+    if (typeof scheduledFor === "number") patch.scheduled_for = scheduledFor
+    if (status === "approved" || status === "scheduled") patch.approved_at = Date.now()
+    if (status === "posted") patch.posted_at = Date.now()
+
+    await ctx.db.patch(postId, patch)
+    return { ok: true }
+  },
+})
+
+export const approvePostAndAutoSchedule = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+  },
+  handler: async (ctx, { userId, postId }) => {
+    const [post, allPosts] = await Promise.all([
+      ctx.db.get(postId),
+      ctx.db.query("posts").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect(),
+    ])
+
+    if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
+
+    const maxQueue = allPosts
+      .filter((p) => (p.workflow_status ?? "draft") === "scheduled")
+      .reduce((max, p) => Math.max(max, typeof p.queue_position === "number" ? p.queue_position : 0), 0)
+
+    await ctx.db.patch(postId, {
+      workflow_status: "scheduled",
+      approved_at: Date.now(),
+      queue_position: maxQueue + 1,
+      review_notes: undefined,
+    })
+
+    await resequenceScheduledQueue(ctx, userId)
+    const updated = await ctx.db.get(postId)
+
+    return { ok: true, scheduledFor: updated?.scheduled_for ?? null, queuePosition: updated?.queue_position ?? null }
+  },
+})
+
+export const reorderScheduledQueue = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    orderedPostIds: v.array(v.id("posts")),
+  },
+  handler: async (ctx, { userId, orderedPostIds }) => {
+    const posts = await ctx.db.query("posts").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect()
+    const scheduled = posts.filter((p) => (p.workflow_status ?? "draft") === "scheduled")
+    const scheduledIds = new Set(scheduled.map((p) => String(p._id)))
+
+    if (orderedPostIds.length !== scheduled.length) {
+      return { ok: false, error: "INVALID_ORDER_LENGTH" as const }
+    }
+    for (const id of orderedPostIds) {
+      if (!scheduledIds.has(String(id))) {
+        return { ok: false, error: "INVALID_ORDER_CONTENT" as const }
+      }
+    }
+
+    for (let i = 0; i < orderedPostIds.length; i++) {
+      await ctx.db.patch(orderedPostIds[i], { queue_position: i + 1 })
+    }
+    await resequenceScheduledQueue(ctx, userId)
+    return { ok: true }
+  },
+})
+
+export const markScheduledPostPublished = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    linkedinPostId: v.optional(v.string()),
+    xPostId: v.optional(v.string()),
+    postedLinkedin: v.optional(v.boolean()),
+    postedX: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { userId, postId, linkedinPostId, xPostId, postedLinkedin, postedX }) => {
+    const post = await ctx.db.get(postId)
+    if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
+
+    await ctx.db.patch(postId, {
+      workflow_status: "posted",
+      posted_at: Date.now(),
+      queue_position: undefined,
+      posted_to_linkedin: postedLinkedin ?? post.posted_to_linkedin ?? false,
+      linkedin_post_id: linkedinPostId ?? post.linkedin_post_id,
+      posted_to_x: postedX ?? post.posted_to_x ?? false,
+      x_post_id: xPostId ?? post.x_post_id,
+    })
+
+    await resequenceScheduledQueue(ctx, userId)
+
     return { ok: true }
   },
 })
@@ -498,6 +733,12 @@ export const backfillProfiles = mutationGeneric({
       }
       if (typeof profile.x_connected !== "boolean") {
         patch.x_connected = false
+      }
+      if (!profile.posting_schedule) {
+        patch.posting_schedule = DEFAULT_POSTING_SCHEDULE
+      }
+      if (typeof profile.timezone !== "string") {
+        patch.timezone = "UTC"
       }
 
       if (Object.keys(patch).length > 0) {

@@ -67,8 +67,16 @@ export async function POST(request: Request) {
       },
       remainingCoins: deduction.newBalance,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Generate Image API] Error:", error)
+
+    if (error?.status === 429) {
+      return NextResponse.json(
+        { error: "Gemini image quota exceeded. Please retry shortly or enable billing/increase quota." },
+        { status: 429 },
+      )
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

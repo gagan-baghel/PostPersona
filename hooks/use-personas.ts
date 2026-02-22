@@ -11,6 +11,7 @@ export interface Persona {
   title: string | null
   personality: string
   writing_style: string
+  training_posts?: string[]
   avatar_url: string | null
   is_suggested: boolean
   is_public?: boolean

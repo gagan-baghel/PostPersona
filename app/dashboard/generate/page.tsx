@@ -14,10 +14,9 @@ export default function GeneratePage() {
   if (isLoading) {
     return (
       <div className="p-4 sm:p-6 md:p-8">
-        <div className="mx-auto max-w-4xl">
+        <div>
           <div className="mb-8">
             <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-            <p className="mt-2 text-muted-foreground">Create once, then publish to LinkedIn or X with your AI personas</p>
           </div>
           <PersonaGridSkeleton />
         </div>
@@ -30,10 +29,9 @@ export default function GeneratePage() {
   if (!userPersonas.length) {
     return (
       <div className="p-4 sm:p-6 md:p-8">
-        <div className="mx-auto max-w-4xl">
+        <div>
           <div className="mb-8">
             <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-            <p className="mt-2 text-muted-foreground">Create once, then publish to LinkedIn or X with your AI personas</p>
           </div>
 
           <div className="rounded-lg border bg-card p-12 text-center">
@@ -67,13 +65,27 @@ export default function GeneratePage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-          <p className="mt-2 text-muted-foreground">Create once, then publish to LinkedIn or X with your AI personas</p>
+      <div className="grid gap-4 xl:grid-cols-5">
+        <div className="xl:col-span-4">
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
+          </div>
+          <PostGenerator avatars={userPersonas} selectedAvatar={null} />
         </div>
 
-        <PostGenerator avatars={userPersonas} selectedAvatar={null} />
+        <aside className="xl:col-span-1">
+          <div className="space-y-2 xl:sticky xl:top-4">
+            <Button asChild variant="outline" className="w-full justify-start bg-transparent">
+              <Link href="/dashboard/review?scheduleWeek=1">Schedule Week</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start bg-transparent">
+              <Link href="/dashboard/review">Open Review Queue</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start bg-transparent">
+              <Link href="/dashboard/calendar">Open Calendar</Link>
+            </Button>
+          </div>
+        </aside>
       </div>
     </div>
   )

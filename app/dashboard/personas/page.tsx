@@ -149,10 +149,12 @@ export default function PersonasPage() {
   }
 
   return (
-    <div className="space-y-6 p-2 sm:p-4 md:p-6">
-      <div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-emerald-500/10 p-6">
-        <h1 className="text-3xl font-bold tracking-tight">Personas</h1>
-        <p className="mt-2 text-muted-foreground">Build your own and discover high-performing community personas.</p>
+    <div className="space-y-4 p-2 sm:p-4 md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Personas</h1>
+        <Button asChild>
+          <Link href="/dashboard/personas/new"><Plus className="mr-2 h-4 w-4" />Create Persona</Link>
+        </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -177,9 +179,7 @@ export default function PersonasPage() {
             </SelectContent>
           </Select>
         ) : (
-          <Button asChild>
-            <Link href="/dashboard/personas/new"><Plus className="mr-2 h-4 w-4" />Create Persona</Link>
-          </Button>
+          <div />
         )}
       </div>
 

@@ -11,6 +11,7 @@ function mapPersona(persona: any) {
     title: persona.title ?? null,
     personality: persona.personality,
     writing_style: persona.writing_style,
+    training_posts: persona.training_posts ?? [],
     avatar_url: persona.avatar_url ?? null,
     is_public: persona.is_public,
     is_app_provided: persona.is_app_provided,
@@ -55,9 +56,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const writingStyle = typeof body.writing_style === "string" ? body.writing_style.trim() : ""
     const title = typeof body.title === "string" ? body.title.trim() : undefined
     const avatarUrl = typeof body.avatar_url === "string" ? body.avatar_url.trim() : undefined
+    const trainingPostsRaw = Array.isArray(body.training_posts)
+      ? body.training_posts.filter((p: unknown) => typeof p === "string").map((p: string) => p.trim()).filter(Boolean)
+      : []
 
     if (!name || !personality || !writingStyle) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+    if (trainingPostsRaw.length > 0 && (trainingPostsRaw.length < 2 || trainingPostsRaw.length > 10)) {
+      return NextResponse.json({ error: "Training posts must contain 2 to 10 posts" }, { status: 400 })
     }
 
     const result = await convexMutation<any>("app:updatePersona", {
@@ -67,6 +74,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       title: title || undefined,
       personality,
       writing_style: writingStyle,
+      training_posts: trainingPostsRaw.length ? trainingPostsRaw : undefined,
       avatar_url: avatarUrl || undefined,
     })
 

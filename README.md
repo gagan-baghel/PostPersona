@@ -1,66 +1,108 @@
-# PersonaPost V1 (Convex Edition)
+# PersonaPost (Convex + Next.js)
 
-PersonaPost is a Next.js app for generating persona-driven LinkedIn posts with AI text/image generation, coin-based usage, and payment support.
+PersonaPost is an AI-assisted social writing workspace for individuals and teams who want a clean, approval-first workflow for LinkedIn and X.
 
-This project has been migrated from Supabase to Convex for data storage and backend logic.
+The app is optimized around one simple loop:
+1. Generate drafts in Studio
+2. Review/approve in Queue
+3. Publish in queue order and monitor in Calendar
 
-## Stack
+---
+
+## Product Direction (Current)
+
+### Core Principles
+- Approval-first: nothing is posted without explicit user approval.
+- Queue-first publishing: top item in scheduled queue posts first.
+- Clarity over complexity: fewer nav items, fewer competing flows.
+- Persona-driven writing: every output is grounded in persona style and training examples.
+
+### Simplified Information Architecture
+- `/dashboard` -> **Overview** (actionable control room)
+- `/dashboard/generate` -> **Studio** (single-post generation)
+- `/dashboard/review` -> **Review Queue** (approve/reject/reschedule + weekly batch generation)
+- `/dashboard/calendar` -> **Calendar** (month view of scheduled/posted content)
+- `/dashboard/personas` -> **Personas**
+- `/dashboard/settings` -> **Settings**
+
+Secondary pages like history/coins remain accessible but are no longer primary nav destinations.
+
+---
+
+## Feature Set
+
+### 1) Studio (Single Post)
+- Generate one post at a time using selected persona + topic.
+- Optional explicit image generation (off by default).
+- Save draft or send directly to review queue.
+
+### 2) Review Queue
+- Two-column layout:
+  - Left: **Pending Review**
+  - Right: **Scheduled Queue**
+- Approve from pending -> moves into scheduled queue.
+- Reject from pending -> blocked from posting.
+- Drag-and-drop scheduled posts to reorder priority.
+- Reschedule any queued post manually.
+- Platform badge shown clearly on each card (`LinkedIn`, `X`, `LinkedIn + X`).
+
+### 3) Schedule Week (Batch Workflow)
+- Button in Review Queue: **Schedule Week**.
+- Prompts for:
+  - Persona (required)
+  - Topic (optional)
+  - Target platform
+- Generates exactly 7 posts and inserts them into **Pending Review**.
+- If topic is blank, generation uses persona-relevant trend themes.
+
+### 4) Calendar
+- Dedicated dashboard calendar page using `react-day-picker`.
+- Large month grid with per-day content markers.
+- Selected-day detail panel for scheduled/posted entries.
+
+### 5) Queue Processor
+- Background trigger on dashboard load calls `/api/posts/process-queue`.
+- Posts only the top scheduled item when due.
+- Moves published post to history state and resequences queue.
+
+---
+
+## Tech Stack
+
 - Next.js 16 (App Router)
 - React 19 + TypeScript
-- Convex (database + server functions)
-- SWR (client data fetching/cache)
-- Razorpay (coin purchase)
-- OpenRouter (text generation)
-- Gemini/DeepAI fallback for image generation
-- Cloudinary (image upload + storage)
+- Convex (data + backend functions)
+- SWR (data fetching)
+- Gemini API (`GEMINI_API_KEY`) with OpenRouter fallback
+- Cloudinary (media)
+- Razorpay (credits)
 
-## Architecture
-- `convex/schema.ts`: all data tables/indexes
-- `convex/app.ts`: core backend queries/mutations (users, profiles, personas, posts, coins, transactions)
-- `lib/convex/client.ts`: server-side Convex HTTP client wrapper
-- `lib/auth/password.ts`: password hashing/verification
-- `lib/auth/session.ts`: secure cookie session creation/validation
-- `app/api/*`: API surface consumed by the frontend
-- `hooks/*`: SWR hooks now using API endpoints (not direct DB clients)
+---
 
-## Data Model
-Convex tables:
-- `users`
-- `profiles`
-- `personas`
-- `posts`
-- `transactions`
+## Environment Variables
 
-## Required Environment Variables
 Create `.env.local`:
 
 ```bash
 # Convex
 NEXT_PUBLIC_CONVEX_URL=https://<your-deployment>.convex.cloud
-CONVEX_ADMIN_KEY=<your-convex-admin-key>
+CONVEX_DEPLOYMENT=<deployment-name>
+CONVEX_ADMIN_KEY=<admin-key>
 
-# Session/Auth
-SESSION_SECRET=<long-random-secret>
+# App/Auth
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+SESSION_SECRET=<long-random-string>
 
-# AI Text
-OPENROUTER_API_KEY=<key>
+# AI
+GEMINI_API_KEY=<gemini-key>
+OPENROUTER_API_KEY=<optional-fallback>
 
 # Payments
 RAZORPAY_KEY_ID=<key>
 RAZORPAY_KEY_SECRET=<secret>
 
-# App URL (used by OAuth callbacks)
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-## Optional Environment Variables
-```bash
-# Image generation (fallback chain)
-GEMINI_API_KEY=<key>
-DEAPI_API_KEY=<key>
-
-# Cloudinary
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=<cloud-name>
+# Cloudinary (optional unless using generated/uploaded media)
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=<cloud>
 CLOUDINARY_API_KEY=<key>
 CLOUDINARY_API_SECRET=<secret>
 
@@ -73,102 +115,93 @@ X_CLIENT_ID=<id>
 X_CLIENT_SECRET=<secret>
 ```
 
+---
+
 ## Local Setup
-1. Install deps:
+
 ```bash
 npm install
+npm run dev
 ```
 
-2. Generate a strong local session secret:
-```bash
-echo "SESSION_SECRET=$(openssl rand -base64 48)" >> .env.local
-```
+`npm run dev` starts both:
+- Next.js frontend
+- Convex dev server
 
-3. Validate env:
-```bash
-node check-env.js
-```
+If Convex isn’t initialized yet:
 
-4. Push Convex schema/functions:
 ```bash
 npx convex dev
 ```
 
-5. Run app (frontend + Convex together):
-```bash
-npm run dev
-```
+---
 
-6. Open:
-```text
-http://localhost:3000
-```
+## Important APIs
 
-## API Surface
-Auth:
-- `POST /api/auth/sign-up`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/session`
-- `DELETE /api/auth/delete-account`
-
-User:
-- `GET /api/user`
-- `PATCH /api/user`
-- `GET /api/user/coins`
-
-Personas:
-- `GET /api/personas`
-- `POST /api/personas`
-- `GET /api/personas/explore`
-- `GET|PATCH|DELETE /api/personas/[id]`
-- `POST /api/personas/[id]/clone`
-- `POST /api/personas/[id]/publish`
-
-Posts:
-- `GET /api/posts?page=1`
-- `DELETE /api/posts/[id]`
-- `POST /api/save-post`
-
-Generation:
+### Generation
 - `POST /api/generate-post`
 - `POST /api/generate-image`
-- `POST /api/sign-media`
+- `POST /api/posts/review/schedule-week`
 
-Coins/Payments:
-- `POST /api/deduct-coins`
-- `POST /api/coins/dummy-purchase` (dev-only)
-- `POST /api/razorpay/order`
-- `POST /api/razorpay/verify`
+### Review + Queue
+- `GET /api/posts/review`
+- `PATCH /api/posts/[id]/review`
+- `POST /api/posts/review/reorder`
+- `POST /api/posts/process-queue`
 
-LinkedIn:
-- `POST /api/linkedin/connect`
-- `GET /api/linkedin/callback`
-- `POST /api/linkedin/disconnect`
-- `POST /api/post-to-linkedin`
+### Posts
+- `GET /api/posts`
+- `POST /api/save-post`
+- `DELETE /api/posts/[id]`
 
-X:
-- `POST /api/x/connect`
-- `GET /api/x/callback`
-- `POST /api/x/disconnect`
-- `POST /api/post-to-x`
+---
+
+## Data Model (Convex)
+
+Primary tables:
+- `users`
+- `profiles`
+- `personas`
+- `posts`
+- `transactions`
+
+Queue-specific post fields:
+- `workflow_status` (`review`, `scheduled`, `posted`, `rejected`, ...)
+- `target_platform` (`linkedin`, `x`, `both`)
+- `scheduled_for`
+- `queue_position`
+
+---
+
+## UX Audit Summary
+
+### Problems identified
+- Too many top-level navigation options causing cognitive load.
+- Mixed generation/review responsibilities spread across pages.
+- Dashboard prioritized charts over actions.
+- Platform targeting visibility was easy to miss.
+
+### Changes made
+- Simplified nav to core workflow pages.
+- Rebuilt dashboard as an action-first control room.
+- Added explicit weekly batch generation flow in Review Queue.
+- Enforced visible platform badges in review/schedule cards.
+- Replaced custom calendar layout with library-backed calendar UI.
+- Removed unused analytics hook and API route.
+
+### Remaining opportunities (next iteration)
+- Add role-based workspaces for teams.
+- Add template packs by domain (founder, recruiter, creator, etc.).
+- Add content performance feedback loop (import engagement metrics).
+
+---
 
 ## Quality Gates
-- Type-check:
+
 ```bash
+npm run lint
 npx tsc --noEmit
-```
-- Build:
-```bash
 npm run build
 ```
 
-## Notes
-- Session auth is cookie-based (`pp_session`) and validated server-side.
-- In local development, if `SESSION_SECRET` is missing, the app uses a temporary fallback secret and logs a warning.
-- For LinkedIn/X OAuth, set callback URLs to:
-  - `http://localhost:3000/api/linkedin/callback`
-  - `http://localhost:3000/api/x/callback`
-- Coin updates are centralized via Convex mutation `app:addCoins`.
-- Razorpay verification path includes signature validation and payment-id deduping.
-- `next.config.mjs` no longer ignores TypeScript build errors.
+Run these before every deploy.

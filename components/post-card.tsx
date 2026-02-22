@@ -23,6 +23,8 @@ interface Post {
   image_preset: string | null
   posted_to_linkedin: boolean
   posted_to_x?: boolean
+  workflow_status?: string
+  scheduled_for?: number | null
   personas: {
     id: string
     name: string
@@ -145,6 +147,11 @@ export function PostCard({ post }: { post: Post }) {
           <div className="inline-block rounded-md bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             {post.topic}
           </div>
+          {post.workflow_status && (
+            <div className="inline-block rounded-md bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+              {post.workflow_status}
+            </div>
+          )}
           {post.image_preset && (
             <div className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
               <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -155,6 +162,11 @@ export function PostCard({ post }: { post: Post }) {
                 />
               </svg>
               {post.image_preset.charAt(0).toUpperCase() + post.image_preset.slice(1)}
+            </div>
+          )}
+          {post.workflow_status === "scheduled" && post.scheduled_for && (
+            <div className="inline-block rounded-md bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+              {new Date(post.scheduled_for).toLocaleString()}
             </div>
           )}
         </div>

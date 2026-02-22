@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import openrouter, { AI_MODELS } from "@/lib/ai/openrouter"
+import genAI from "@/lib/ai/gemini"
 import { buildStructuredPrompt } from "@/lib/ai/prompt-builder"
 import { GeneratePostSchema } from "@/lib/validation/schemas"
 import { z } from "zod"
@@ -38,17 +38,47 @@ export async function POST(request: Request) {
     }
 
     const messages = buildStructuredPrompt(persona, topic)
+    let resultRaw = ""
 
-    const completion = await openrouter.chat.send({
-      model: AI_MODELS.TEXT_GENERATION,
-      messages: messages as any,
-      // @ts-ignore OpenRouter SDK typing mismatch
-      temperature: 0.7,
-      maxTokens: 1000,
-      stream: false,
-    })
+    try {
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+      })
+      const prompt = messages.map((m) => `${m.role.toUpperCase()}:\n${m.content}`).join("\n\n")
+      const generation = await model.generateContent(prompt)
+      resultRaw = generation.response.text() || ""
+    } catch (geminiError: any) {
+      const openRouterKey = process.env.OPENROUTER_API_KEY
+      if (!openRouterKey) {
+        throw geminiError
+      }
 
-    const resultRaw = (completion as any).choices?.[0]?.message?.content || ""
+      const fallbackResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "nex-agi/deepseek-v3.1-nex-n1:free",
+          messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      })
+
+      const fallbackJson = await fallbackResponse.json().catch(() => ({}))
+      if (!fallbackResponse.ok) {
+        throw new Error(
+          fallbackJson?.error?.message ||
+            fallbackJson?.message ||
+            `Fallback provider failed with status ${fallbackResponse.status}`,
+        )
+      }
+
+      resultRaw = fallbackJson?.choices?.[0]?.message?.content || ""
+    }
+
     let resultJson
 
     const AIOutputSchema = z.object({
@@ -102,8 +132,25 @@ export async function POST(request: Request) {
       data: resultJson,
       remainingCoins: deduction.newBalance,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Generate API] Error:", error)
+
+    if (error?.status === 429) {
+      const retryInfo = Array.isArray(error?.errorDetails)
+        ? error.errorDetails.find((d: any) => d?.["@type"]?.includes("RetryInfo"))
+        : null
+      const retryDelayRaw = retryInfo?.retryDelay as string | undefined
+      const retryAfterSeconds = typeof retryDelayRaw === "string" ? Number.parseInt(retryDelayRaw, 10) : undefined
+
+      return NextResponse.json(
+        {
+          error: "Gemini quota exceeded. Please retry shortly or enable billing/increase quota.",
+          retryAfterSeconds: Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : 40,
+        },
+        { status: 429 },
+      )
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

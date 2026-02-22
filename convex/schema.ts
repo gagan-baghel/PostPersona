@@ -14,6 +14,8 @@ export default defineSchema({
     coins: v.number(),
     default_persona_public: v.optional(v.boolean()),
     allow_profile_in_explore: v.optional(v.boolean()),
+    posting_schedule: v.optional(v.any()),
+    timezone: v.optional(v.string()),
     linkedin_connected: v.boolean(),
     linkedin_access_token: v.optional(v.string()),
     linkedin_profile_id: v.optional(v.string()),
@@ -31,6 +33,7 @@ export default defineSchema({
     title: v.optional(v.string()),
     personality: v.string(),
     writing_style: v.string(),
+    training_posts: v.optional(v.array(v.string())),
     avatar_url: v.optional(v.string()),
     is_public: v.boolean(),
     is_app_provided: v.boolean(),
@@ -57,8 +60,19 @@ export default defineSchema({
     linkedin_post_id: v.optional(v.string()),
     posted_to_x: v.optional(v.boolean()),
     x_post_id: v.optional(v.string()),
+    workflow_status: v.optional(v.string()),
+    target_platform: v.optional(v.string()),
+    scheduled_for: v.optional(v.number()),
+    approved_at: v.optional(v.number()),
+    posted_at: v.optional(v.number()),
+    review_notes: v.optional(v.string()),
+    queue_position: v.optional(v.number()),
     created_at: v.number(),
-  }).index("by_user_id", ["user_id"]),
+  })
+    .index("by_user_id", ["user_id"])
+    .index("by_user_status", ["user_id", "workflow_status"])
+    .index("by_user_status_queue", ["user_id", "workflow_status", "queue_position"])
+    .index("by_user_scheduled", ["user_id", "scheduled_for"]),
 
   transactions: defineTable({
     user_id: v.id("users"),

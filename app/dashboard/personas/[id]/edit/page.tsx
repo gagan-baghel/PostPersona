@@ -12,6 +12,7 @@ interface Persona {
     title: string | null
     personality: string
     writing_style: string
+    training_posts?: string[]
     avatar_url: string | null
     is_app_provided?: boolean
 }

@@ -62,6 +62,8 @@ export async function POST(request: Request) {
       imagePreset: imagePreset || undefined,
       postedToX: true,
       xPostId,
+      workflowStatus: "posted",
+      targetPlatform: "x",
     })
 
     if (!post?.ok) {

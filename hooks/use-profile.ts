@@ -12,6 +12,8 @@ interface Profile {
   coins: number
   default_persona_public?: boolean
   allow_profile_in_explore?: boolean
+  posting_schedule?: Record<string, string> | null
+  timezone?: string | null
   linkedin_connected?: boolean
   x_connected?: boolean
   x_username?: string | null

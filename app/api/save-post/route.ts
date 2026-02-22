@@ -34,6 +34,10 @@ export async function POST(request: Request) {
       imagePreset,
       imagePrompt,
       aiModelVersion,
+      workflowStatus,
+      targetPlatform,
+      scheduledFor,
+      reviewNotes,
     } = validation.data
 
     const result = await convexMutation<any>("app:createPost", {
@@ -47,6 +51,10 @@ export async function POST(request: Request) {
       imagePreset: imagePreset || undefined,
       imagePrompt: imagePrompt || undefined,
       aiModelVersion: aiModelVersion || "DeepSeek-V3.1-Nex-N1",
+      workflowStatus: workflowStatus || undefined,
+      targetPlatform: targetPlatform || undefined,
+      scheduledFor: typeof scheduledFor === "number" ? scheduledFor : undefined,
+      reviewNotes: reviewNotes || undefined,
     })
 
     if (!result?.ok) {

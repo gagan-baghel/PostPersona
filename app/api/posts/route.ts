@@ -12,11 +12,13 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const page = Number(url.searchParams.get("page") || "1")
+    const pageSizeParam = Number(url.searchParams.get("pageSize") || "20")
+    const pageSize = Number.isNaN(pageSizeParam) || pageSizeParam < 1 ? 20 : Math.min(pageSizeParam, 250)
 
     const posts = await convexQuery<any[]>("app:listPosts", {
       userId,
       page: Number.isNaN(page) || page < 1 ? 1 : page,
-      pageSize: 20,
+      pageSize,
     })
 
     return NextResponse.json(posts ?? [])

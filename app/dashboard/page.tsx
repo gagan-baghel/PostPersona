@@ -2,212 +2,144 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DashboardSkeleton } from "@/components/skeletons/dashboard-skeleton"
 import { usePosts } from "@/hooks/use-posts"
 import { useProfile } from "@/hooks/use-profile"
-import { useDashboardAnalytics } from "@/hooks/use-dashboard-analytics"
-import { DashboardSkeleton } from "@/components/skeletons/dashboard-skeleton"
-import { PostCard } from "@/components/post-card"
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
-import {
-  Activity,
-  BarChart3,
-  Coins,
-  Globe,
-  Linkedin,
-  PenSquare,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Twitter,
-} from "lucide-react"
+import { CalendarDays, CheckCircle2, Clock3, Coins, History, Linkedin, PenSquare, Settings, Sparkles, Twitter } from "lucide-react"
 
-const COLORS = ["#2563eb", "#0ea5e9", "#10b981", "#f59e0b"]
+function isNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v)
+}
 
 export default function DashboardPage() {
   const { posts, isLoading: postsLoading } = usePosts()
-  const { profile } = useProfile()
-  const { analytics, isLoading: analyticsLoading } = useDashboardAnalytics()
+  const { profile, isLoading: profileLoading } = useProfile()
 
-  if (postsLoading || analyticsLoading || !analytics) {
+  if (postsLoading || profileLoading) {
     return <DashboardSkeleton />
   }
 
-  const greetingName = profile?.full_name?.trim() || "there"
-  const totalPosts = analytics.totals.posts
-  const publishMix = [
-    { name: "LinkedIn", value: analytics.totals.postedToLinkedin },
-    { name: "X", value: analytics.totals.postedToX },
-    {
-      name: "Drafts",
-      value: Math.max(0, totalPosts - analytics.totals.postedToLinkedin - analytics.totals.postedToX),
-    },
-  ]
+  const pending = posts.filter((p: any) => (p.workflow_status ?? "draft") === "review")
+  const scheduled = posts
+    .filter((p: any) => (p.workflow_status ?? "draft") === "scheduled")
+    .sort((a: any, b: any) => {
+      const aq = isNumber(a.queue_position) ? a.queue_position : Number.MAX_SAFE_INTEGER
+      const bq = isNumber(b.queue_position) ? b.queue_position : Number.MAX_SAFE_INTEGER
+      if (aq !== bq) return aq - bq
+      return (a.scheduled_for ?? 0) - (b.scheduled_for ?? 0)
+    })
+  const posted = posts.filter((p: any) => (p.workflow_status ?? "draft") === "posted")
+
+  const nextQueued = scheduled.slice(0, 5)
+  const firstName = profile?.full_name?.trim()?.split(" ")?.[0] || "Creator"
 
   return (
-    <div className="space-y-8 p-2 sm:p-4 md:p-6">
-      <section className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-sky-500/10 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Welcome back, {greetingName}</h1>
-            <p className="mt-2 text-muted-foreground">Create, publish, and track persona-based content across LinkedIn and X.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button asChild>
-              <Link href="/dashboard/generate">
-                <PenSquare className="mr-2 h-4 w-4" />
-                Create Post
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="bg-transparent">
-              <Link href="/dashboard/personas">
-                <Sparkles className="mr-2 h-4 w-4" />
-                Explore Personas
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
+    <div className="space-y-6 p-2 sm:p-4 md:p-6">
+      <Card className="bg-gradient-to-br from-primary/10 via-background to-cyan-500/10">
+        <CardHeader>
+          <CardTitle className="text-3xl">{firstName}, this is your content control room</CardTitle>
+          <CardDescription>
+            One clear workflow: generate drafts, approve queue, and let scheduled posts publish in order.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/dashboard/generate">
+              <PenSquare className="mr-2 h-4 w-4" />
+              Open Studio
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="bg-transparent">
+            <Link href="/dashboard/review">
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Open Review Queue
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="bg-transparent">
+            <Link href="/dashboard/calendar">
+              <CalendarDays className="mr-2 h-4 w-4" />
+              Open Calendar
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Total Posts</CardDescription>
-            <CardTitle className="text-3xl">{analytics.totals.posts}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Last 30 days: {analytics.totals.posts30d}</span>
-            <TrendingUp className="h-4 w-4 text-primary" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Personas</CardDescription>
-            <CardTitle className="text-3xl">{analytics.totals.personas}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Public: {analytics.totals.publicPersonas}</span>
-            <Users className="h-4 w-4 text-primary" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Coin Balance</CardDescription>
-            <CardTitle className="text-3xl">{analytics.totals.coins}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Spent 30d: {analytics.totals.coinsSpent30d}</span>
-            <Coins className="h-4 w-4 text-primary" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Connected Channels</CardDescription>
-            <CardTitle className="text-3xl">
-              {Number(analytics.connections.linkedin) + Number(analytics.connections.x)} / 2
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center gap-2">
-            <Badge variant={analytics.connections.linkedin ? "default" : "secondary"}>
-              <Linkedin className="mr-1 h-3 w-3" /> LinkedIn
-            </Badge>
-            <Badge variant={analytics.connections.x ? "default" : "secondary"}>
-              <Twitter className="mr-1 h-3 w-3" /> X
-            </Badge>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Publishing Activity (7 days)
-            </CardTitle>
-            <CardDescription>How often you are creating content this week.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={analytics.weeklySeries}>
-                <defs>
-                  <linearGradient id="postsGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#2563eb" fill="url(#postsGradient)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-primary" />
-              Publish Mix
-            </CardTitle>
-            <CardDescription>Where your posts are ending up.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={publishMix} dataKey="value" nameKey="name" innerRadius={60} outerRadius={95} label>
-                  {publishMix.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Recent Posts</CardTitle>
-              <CardDescription>Your latest generated content</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/history">View history</Link>
-            </Button>
+            <CardDescription>Pending Review</CardDescription>
+            <CardTitle className="text-3xl">{pending.length}</CardTitle>
           </CardHeader>
           <CardContent>
-            {posts.length > 0 ? (
-              <div className="space-y-4">
-                {posts.slice(0, 3).map((post) => (
-                  <PostCard key={post.id} post={post} />
-                ))}
+            <p className="text-sm text-muted-foreground">Needs your approval before any posting.</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Scheduled Queue</CardDescription>
+            <CardTitle className="text-3xl">{scheduled.length}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Top queue item publishes first.</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Published</CardDescription>
+            <CardTitle className="text-3xl">{posted.length}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Posts completed and moved to history.</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Credits</CardDescription>
+            <CardTitle className="text-3xl">{profile?.coins ?? 0}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{(profile?.coins ?? 0) < 10 ? "Low credits, consider topping up." : "Healthy credit balance."}</p>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock3 className="h-5 w-5 text-primary" />
+              Next in Queue
+            </CardTitle>
+            <CardDescription>These are the next posts to be published, in exact order.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {nextQueued.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Queue is empty. Approve drafts in Review Queue to start scheduling.
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed p-8 text-center">
-                <Activity className="mx-auto h-8 w-8 text-muted-foreground" />
-                <p className="mt-3 text-sm text-muted-foreground">No posts yet. Generate your first one.</p>
+              <div className="space-y-3">
+                {nextQueued.map((post: any, index: number) => (
+                  <div key={post.id} className="rounded-lg border p-3">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">#{index + 1}</Badge>
+                        <p className="font-medium line-clamp-1">{post.topic}</p>
+                      </div>
+                      <Badge variant="outline">
+                        {post.target_platform === "x" ? "X" : post.target_platform === "both" ? "LinkedIn + X" : "LinkedIn"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {post.scheduled_for ? `Scheduled: ${new Date(post.scheduled_for).toLocaleString()}` : "Time will be auto-assigned"}
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -215,19 +147,45 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Growth Snapshot</CardTitle>
-            <CardDescription>Simple view of momentum this week</CardDescription>
+            <CardTitle>Account Health</CardTitle>
+            <CardDescription>Connection status and quick tools</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analytics.weeklySeries}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={(v) => v.slice(5)} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#10b981" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>
+                <Linkedin className="mr-1 h-3.5 w-3.5" /> LinkedIn
+              </Badge>
+              <Badge variant={profile?.x_connected ? "default" : "secondary"}>
+                <Twitter className="mr-1 h-3.5 w-3.5" /> X
+              </Badge>
+            </div>
+
+            <div className="space-y-2">
+              <Button asChild variant="outline" className="w-full justify-start bg-transparent">
+                <Link href="/dashboard/personas">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Manage Personas
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start bg-transparent">
+                <Link href="/dashboard/history">
+                  <History className="mr-2 h-4 w-4" />
+                  View History
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start bg-transparent">
+                <Link href="/dashboard/coins">
+                  <Coins className="mr-2 h-4 w-4" />
+                  Manage Credits
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start bg-transparent">
+                <Link href="/dashboard/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Posting Settings
+                </Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </section>

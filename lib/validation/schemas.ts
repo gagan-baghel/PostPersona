@@ -4,7 +4,7 @@ import { z } from "zod"
 const sanitizeInput = (val: string) => val.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim()
 
 export const GeneratePostSchema = z.object({
-    avatarId: z.string().uuid(),
+    avatarId: z.string().min(1, "Persona ID is required"),
     // Topic: Allow alphanumeric, punctuation, emojis. Block generic injection attempts.
     topic: z.string()
         .min(5, "Topic must be at least 5 characters")
@@ -15,7 +15,7 @@ export const GeneratePostSchema = z.object({
 })
 
 export const ImagePromptSchema = z.object({
-    personaId: z.string().uuid().optional(),
+    personaId: z.string().min(1).optional(),
     // Sanitized post content context
     postContent: z.string().min(10).transform(sanitizeInput),
     imagePreset: z.enum(['infographic', 'corporate', 'fun', 'ghibli', 'realistic', 'sketch']).optional().default('corporate'),
@@ -28,7 +28,7 @@ export const ImagePromptSchema = z.object({
 })
 
 export const SavePostSchema = z.object({
-    personaId: z.string().uuid(),
+    personaId: z.string().min(1, "Persona ID is required"),
     topic: z.string().min(5).max(500).transform(sanitizeInput),
     content: z.string().min(10).transform(sanitizeInput),
     // Allow empty strings by transforming them to null, and use .catch() to avoid hard failures on weird values
@@ -38,4 +38,8 @@ export const SavePostSchema = z.object({
     imagePreset: z.string().optional().nullable(),
     imagePrompt: z.string().optional().nullable(),
     aiModelVersion: z.string().optional().nullable(),
+    workflowStatus: z.enum(["draft", "review", "scheduled", "posted", "rejected"]).optional().nullable(),
+    targetPlatform: z.enum(["linkedin", "x", "both"]).optional().nullable(),
+    scheduledFor: z.number().optional().nullable(),
+    reviewNotes: z.string().optional().nullable(),
 })

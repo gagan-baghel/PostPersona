@@ -85,6 +85,8 @@ export async function POST(request: Request) {
       imagePreset: imagePreset || undefined,
       postedToLinkedin: true,
       linkedinPostId,
+      workflowStatus: "posted",
+      targetPlatform: "linkedin",
     })
 
     if (!post?.ok) {

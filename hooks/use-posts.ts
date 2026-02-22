@@ -15,6 +15,11 @@ interface Post {
   image_preset: string | null
   posted_to_linkedin: boolean
   posted_to_x: boolean
+  workflow_status?: string
+  target_platform?: string
+  scheduled_for?: number | null
+  approved_at?: number | null
+  review_notes?: string | null
   posted_at: string | null
   created_at: string
   personas: {

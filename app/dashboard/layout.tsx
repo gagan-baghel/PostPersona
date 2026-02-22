@@ -22,6 +22,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [authLoading, user, router])
 
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetch("/api/posts/process-queue", { method: "POST" }).catch(() => undefined)
+    }
+  }, [authLoading, user])
+
   // Show nothing while checking auth (instant mount, no blocking)
   if (authLoading) {
     return null

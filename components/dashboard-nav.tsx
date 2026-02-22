@@ -15,14 +15,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
-import { Coins, History, Home, LogOut, PenSquare, Settings, Sparkles } from "lucide-react"
+import { CalendarDays, CheckSquare, Home, LogOut, PenSquare, Settings, Sparkles } from "lucide-react"
 
 const navItems = [
-  { title: "Dashboard", href: "/dashboard", icon: Home },
-  { title: "Create Post", href: "/dashboard/generate", icon: PenSquare },
+  { title: "Overview", href: "/dashboard", icon: Home },
+  { title: "Studio", href: "/dashboard/generate", icon: PenSquare },
+  { title: "Review Queue", href: "/dashboard/review", icon: CheckSquare },
+  { title: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
   { title: "Personas", href: "/dashboard/personas", icon: Sparkles },
-  { title: "History", href: "/dashboard/history", icon: History },
-  { title: "Coins", href: "/dashboard/coins", icon: Coins },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
@@ -62,7 +62,7 @@ export function DashboardNav() {
 
         <nav className="flex-1 space-y-1 p-4">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = item.href === "/dashboard" ? pathname === item.href : pathname.startsWith(item.href)
             const Icon = item.icon
             return (
               <Link

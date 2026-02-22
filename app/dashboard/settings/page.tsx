@@ -36,6 +36,14 @@ export default function SettingsPage() {
   const [fullName, setFullName] = useState("")
   const [defaultPublic, setDefaultPublic] = useState(false)
   const [showInExplore, setShowInExplore] = useState(true)
+  const [timezone, setTimezone] = useState("UTC")
+  const [postingSchedule, setPostingSchedule] = useState<Record<string, string>>({
+    monday: "09:30",
+    tuesday: "10:00",
+    wednesday: "09:45",
+    thursday: "10:15",
+    friday: "09:30",
+  })
 
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isSavingPrefs, setIsSavingPrefs] = useState(false)
@@ -48,6 +56,10 @@ export default function SettingsPage() {
     setFullName(profile.full_name || "")
     setDefaultPublic(Boolean(profile.default_persona_public))
     setShowInExplore(profile.allow_profile_in_explore !== false)
+    if (profile.timezone) setTimezone(profile.timezone)
+    if (profile.posting_schedule && typeof profile.posting_schedule === "object") {
+      setPostingSchedule((prev) => ({ ...prev, ...(profile.posting_schedule as Record<string, string>) }))
+    }
   }, [profile])
 
   useEffect(() => {
@@ -91,6 +103,8 @@ export default function SettingsPage() {
     const result = await updateProfile(user.id, {
       default_persona_public: defaultPublic,
       allow_profile_in_explore: showInExplore,
+      posting_schedule: postingSchedule,
+      timezone,
     })
     if (result.success) {
       toast.success("Preferences saved")
@@ -172,23 +186,20 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 p-2 sm:p-4 md:p-6">
-      <Card className="bg-gradient-to-br from-primary/10 via-background to-cyan-500/10">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Settings2 className="h-5 w-5 text-primary" />Settings</CardTitle>
-          <CardDescription>Manage profile, social channels, and default persona behavior.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant="secondary">Connected channels: {connectionSummary}/2</Badge>
+    <div className="space-y-4 p-2 sm:p-4 md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold"><Settings2 className="h-5 w-5 text-primary" />Settings</h1>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">Channels: {connectionSummary}/2</Badge>
           <Badge variant="secondary">Coins: {profile?.coins || 0}</Badge>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><UserRound className="h-5 w-5 text-primary" />Profile</CardTitle>
-            <CardDescription>Personal account information.</CardDescription>
+            <CardDescription>Account info.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -209,7 +220,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Billing</CardTitle>
-            <CardDescription>Coins and purchases.</CardDescription>
+            <CardDescription>Coins.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-3xl font-bold">{profile?.coins || 0}</p>
@@ -225,7 +236,7 @@ export default function SettingsPage() {
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Social Channels</CardTitle>
-            <CardDescription>Connect accounts to post directly from PersonaPost.</CardDescription>
+            <CardDescription>Connect LinkedIn and X.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="rounded-lg border p-4">
@@ -233,7 +244,6 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2 font-medium"><Linkedin className="h-4 w-4 text-[#0A66C2]" /> LinkedIn</div>
                 <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>{profile?.linkedin_connected ? "Connected" : "Not connected"}</Badge>
               </div>
-              <p className="mb-4 text-sm text-muted-foreground">Publish long-form professional posts in one click.</p>
               <Button onClick={handleLinkedIn} disabled={isLinkingLinkedIn} className="w-full">
                 {isLinkingLinkedIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {profile?.linkedin_connected ? "Disconnect LinkedIn" : "Connect LinkedIn"}
@@ -245,7 +255,6 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2 font-medium"><X className="h-4 w-4" /> X</div>
                 <Badge variant={profile?.x_connected ? "default" : "secondary"}>{profile?.x_connected ? "Connected" : "Not connected"}</Badge>
               </div>
-              <p className="mb-1 text-sm text-muted-foreground">Publish short-form posts to X directly.</p>
               {profile?.x_username && <p className="mb-4 text-xs text-muted-foreground">Connected as @{profile.x_username}</p>}
               {!profile?.x_username && <div className="mb-4" />}
               <Button onClick={handleX} disabled={isLinkingX} className="w-full" variant="secondary">
@@ -258,8 +267,8 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Persona Defaults</CardTitle>
-            <CardDescription>Apply defaults for faster persona creation.</CardDescription>
+            <CardTitle>Persona + Scheduling Defaults</CardTitle>
+            <CardDescription>Default visibility and weekday times.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex items-center justify-between gap-4">
@@ -276,6 +285,23 @@ export default function SettingsPage() {
               </div>
               <Switch checked={showInExplore} onCheckedChange={setShowInExplore} />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="timezone">Timezone</Label>
+              <Input id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="UTC" />
+            </div>
+
+            {(["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((day) => (
+              <div key={day} className="space-y-2">
+                <Label htmlFor={`schedule-${day}`}>Default {day.slice(0, 1).toUpperCase() + day.slice(1)} time</Label>
+                <Input
+                  id={`schedule-${day}`}
+                  type="time"
+                  value={postingSchedule[day] || "09:30"}
+                  onChange={(e) => setPostingSchedule((prev) => ({ ...prev, [day]: e.target.value || "09:30" }))}
+                />
+              </div>
+            ))}
             <Button onClick={handleSavePrefs} disabled={isSavingPrefs} className="w-full">
               {isSavingPrefs && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save defaults
