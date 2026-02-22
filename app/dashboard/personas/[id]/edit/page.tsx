@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { PersonaForm } from "@/components/persona-form"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/hooks/use-auth"
@@ -27,19 +26,13 @@ export default function EditPersonaPage({ params }: { params: Promise<{ id: stri
     useEffect(() => {
         async function loadPersona() {
             const { id } = await params
-            const supabase = createClient()
-
-            const { data: personaData, error: fetchError } = await supabase
-                .from("personas")
-                .select("*")
-                .eq("id", id)
-                .single()
-
-            if (fetchError || !personaData) {
+            const response = await fetch(`/api/personas/${id}`)
+            if (!response.ok) {
                 setError("Persona not found")
                 setIsLoading(false)
                 return
             }
+            const personaData = await response.json()
 
             // Check if user owns this persona
             if (personaData.user_id !== user?.id) {

@@ -1,17 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { useProfile } from "@/hooks/use-profile"
+import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { updateProfile, deleteAccount } from "@/lib/mutations"
 import { useAuth } from "@/hooks/use-auth"
-import { useRouter } from "next/navigation"
+import { useProfile } from "@/hooks/use-profile"
+import { connectLinkedIn, connectX, deleteAccount, disconnectLinkedIn, disconnectX, updateProfile } from "@/lib/mutations"
+import { Linkedin, Loader2, Settings2, Trash2, UserRound, X } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,200 +28,289 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export default function SettingsPage() {
-  const { profile, isLoading, refetch } = useProfile()
-  const { user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user } = useAuth()
+  const { profile, isLoading, refetch } = useProfile()
 
-  // Settings State
   const [fullName, setFullName] = useState("")
   const [defaultPublic, setDefaultPublic] = useState(false)
   const [showInExplore, setShowInExplore] = useState(true)
 
-  // Loading States
-  const [isSaving, setIsSaving] = useState(false)
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isSavingPrefs, setIsSavingPrefs] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isLinkingLinkedIn, setIsLinkingLinkedIn] = useState(false)
+  const [isLinkingX, setIsLinkingX] = useState(false)
 
-  // Load initial data
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name || "")
-      // Load potential future preferences from profile if implemented
-    }
+    if (!profile) return
+    setFullName(profile.full_name || "")
+    setDefaultPublic(Boolean(profile.default_persona_public))
+    setShowInExplore(profile.allow_profile_in_explore !== false)
   }, [profile])
 
-  const handleSaveProfile = async () => {
-    if (!profile) return
-    setIsSaving(true)
-
-    try {
-      const result = await updateProfile(profile.id, { full_name: fullName })
-
-      if (result.success) {
-        toast.success("Profile updated successfully")
-        refetch()
-      } else {
-        toast.error(result.error || "Failed to update profile")
-      }
-    } catch (error) {
-      toast.error("An unexpected error occurred")
-    } finally {
-      setIsSaving(false)
+  useEffect(() => {
+    if (searchParams.get("linkedin_success") === "true") {
+      toast.success("LinkedIn connected")
+      refetch()
     }
+    if (searchParams.get("x_success") === "true") {
+      toast.success("X connected")
+      refetch()
+    }
+    if (searchParams.get("linkedin_error")) {
+      toast.error(`LinkedIn connect failed: ${searchParams.get("linkedin_error")}`)
+    }
+    if (searchParams.get("x_error")) {
+      toast.error(`X connect failed: ${searchParams.get("x_error")}`)
+    }
+  }, [searchParams, refetch])
+
+  const connectionSummary = useMemo(() => {
+    const channels = [profile?.linkedin_connected ? 1 : 0, profile?.x_connected ? 1 : 0]
+    return channels.reduce((a, b) => a + b, 0)
+  }, [profile?.linkedin_connected, profile?.x_connected])
+
+  const handleSaveProfile = async () => {
+    if (!user) return
+    setIsSavingProfile(true)
+    const result = await updateProfile(user.id, { full_name: fullName })
+    if (result.success) {
+      toast.success("Profile updated")
+      await refetch()
+    } else {
+      toast.error(result.error || "Failed to update profile")
+    }
+    setIsSavingProfile(false)
   }
 
-  const handleSavePreferences = async () => {
-    // Simulating preference save for now as requested
-    // In real app, this would use updateProfile with a metadata column
-    setIsSaving(true)
-    await new Promise(resolve => setTimeout(resolve, 600))
-    toast.success("Preferences saved (Simulation)")
-    setIsSaving(false)
+  const handleSavePrefs = async () => {
+    if (!user) return
+    setIsSavingPrefs(true)
+    const result = await updateProfile(user.id, {
+      default_persona_public: defaultPublic,
+      allow_profile_in_explore: showInExplore,
+    })
+    if (result.success) {
+      toast.success("Preferences saved")
+      await refetch()
+    } else {
+      toast.error(result.error || "Failed to save preferences")
+    }
+    setIsSavingPrefs(false)
+  }
+
+  const handleLinkedIn = async () => {
+    setIsLinkingLinkedIn(true)
+    if (profile?.linkedin_connected) {
+      const result = await disconnectLinkedIn()
+      if (result.success) {
+        toast.success("LinkedIn disconnected")
+        await refetch()
+      } else {
+        toast.error(result.error || "Failed to disconnect LinkedIn")
+      }
+      setIsLinkingLinkedIn(false)
+      return
+    }
+
+    const result = await connectLinkedIn("/dashboard/settings")
+    if (!result.success || !result.authUrl) {
+      toast.error(result.error || "Failed to connect LinkedIn")
+      setIsLinkingLinkedIn(false)
+      return
+    }
+
+    window.location.href = result.authUrl
+  }
+
+  const handleX = async () => {
+    setIsLinkingX(true)
+    if (profile?.x_connected) {
+      const result = await disconnectX()
+      if (result.success) {
+        toast.success("X disconnected")
+        await refetch()
+      } else {
+        toast.error(result.error || "Failed to disconnect X")
+      }
+      setIsLinkingX(false)
+      return
+    }
+
+    const result = await connectX("/dashboard/settings")
+    if (!result.success || !result.authUrl) {
+      toast.error(result.error || "Failed to connect X")
+      setIsLinkingX(false)
+      return
+    }
+
+    window.location.href = result.authUrl
   }
 
   const handleDeleteAccount = async () => {
     setIsDeleting(true)
-    try {
-      const result = await deleteAccount()
-      if (result.success) {
-        toast.success("Account deleted successfully")
-        router.replace("/auth/login")
-      } else {
-        toast.error(result.error || "Failed to delete account")
-        setIsDeleting(false)
-      }
-    } catch (error) {
-      toast.error("An error occurred during deletion")
+    const result = await deleteAccount()
+    if (result.success) {
+      toast.success("Account deleted")
+      router.replace("/auth/login")
+    } else {
+      toast.error(result.error || "Failed to delete account")
       setIsDeleting(false)
     }
   }
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 md:p-8">
-        <div className="mx-auto max-w-2xl space-y-8">
-          <Skeleton className="h-10 w-48 mb-4" />
-          <div className="space-y-6">
-            <Skeleton className="h-64 w-full rounded-lg" />
-            <Skeleton className="h-48 w-full rounded-lg" />
-          </div>
-        </div>
+      <div className="space-y-6 p-2 sm:p-4 md:p-6">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     )
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <div className="mx-auto max-w-2xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="mt-2 text-muted-foreground">Manage your account settings and preferences</p>
-        </div>
+    <div className="space-y-6 p-2 sm:p-4 md:p-6">
+      <Card className="bg-gradient-to-br from-primary/10 via-background to-cyan-500/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Settings2 className="h-5 w-5 text-primary" />Settings</CardTitle>
+          <CardDescription>Manage profile, social channels, and default persona behavior.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2 text-sm">
+          <Badge variant="secondary">Connected channels: {connectionSummary}/2</Badge>
+          <Badge variant="secondary">Coins: {profile?.coins || 0}</Badge>
+        </CardContent>
+      </Card>
 
-        <div className="space-y-8">
-
-          {/* Profile Information */}
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Profile Information</h2>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" value={profile?.email || ""} disabled className="bg-muted" />
-                <p className="text-xs text-muted-foreground">Your email cannot be changed</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Your Name"
-                />
-              </div>
-
-              <Button onClick={handleSaveProfile} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Changes"}
-              </Button>
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><UserRound className="h-5 w-5 text-primary" />Profile</CardTitle>
+            <CardDescription>Personal account information.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={profile?.email || ""} disabled className="bg-muted" />
             </div>
-          </div>
-
-          {/* Account Overview */}
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Account Information</h2>
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div>
-                <Label className="text-muted-foreground text-xs uppercase tracking-wider">Account ID</Label>
-                <p className="font-mono text-xs mt-1 bg-muted p-2 rounded truncate">{profile?.id}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground text-xs uppercase tracking-wider">Coin Balance</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-2xl font-bold text-primary">{profile?.coins || 0}</span>
-                </div>
-              </div>
-
-              <div className="col-span-full">
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/dashboard/coins">Get More Coins</Link>
-                </Button>
-              </div>
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" />
             </div>
-          </div>
+            <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+              {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save profile
+            </Button>
+          </CardContent>
+        </Card>
 
-          {/* Persona Preferences (Visual only for now per strict request to match UI, functioning logic can be added later) */}
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Persona Preferences</h2>
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-base font-medium">New personas public by default</Label>
-                  <p className="text-sm text-muted-foreground">New personas will be visible in Explore immediately</p>
-                </div>
-                <Switch checked={defaultPublic} onCheckedChange={setDefaultPublic} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-base font-medium">Show in Explore</Label>
-                  <p className="text-sm text-muted-foreground">Allow others to discover your published personas</p>
-                </div>
-                <Switch checked={showInExplore} onCheckedChange={setShowInExplore} />
-              </div>
-              <Button onClick={handleSavePreferences} variant="secondary" disabled={isSaving}>
-                Save Preferences
-              </Button>
-            </div>
-          </div>
-
-          {/* Danger Zone */}
-          <div className="rounded-lg border border-red-200 bg-red-50 p-6 dark:bg-red-950/20 dark:border-red-900">
-            <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Danger Zone</h2>
-            <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-6">
-              Once you delete your account, there is no going back. Please be certain.
-            </p>
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">Delete Account</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete your account and remove your data from our servers.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    {isDeleting ? "Deleting..." : "Delete Account"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Billing</CardTitle>
+            <CardDescription>Coins and purchases.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-3xl font-bold">{profile?.coins || 0}</p>
+            <p className="text-sm text-muted-foreground">Current coin balance</p>
+            <Button asChild variant="outline" className="w-full bg-transparent">
+              <Link href="/dashboard/coins">Buy coins</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle>Social Channels</CardTitle>
+            <CardDescription>Connect accounts to post directly from PersonaPost.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 font-medium"><Linkedin className="h-4 w-4 text-[#0A66C2]" /> LinkedIn</div>
+                <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>{profile?.linkedin_connected ? "Connected" : "Not connected"}</Badge>
+              </div>
+              <p className="mb-4 text-sm text-muted-foreground">Publish long-form professional posts in one click.</p>
+              <Button onClick={handleLinkedIn} disabled={isLinkingLinkedIn} className="w-full">
+                {isLinkingLinkedIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {profile?.linkedin_connected ? "Disconnect LinkedIn" : "Connect LinkedIn"}
+              </Button>
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 font-medium"><X className="h-4 w-4" /> X</div>
+                <Badge variant={profile?.x_connected ? "default" : "secondary"}>{profile?.x_connected ? "Connected" : "Not connected"}</Badge>
+              </div>
+              <p className="mb-1 text-sm text-muted-foreground">Publish short-form posts to X directly.</p>
+              {profile?.x_username && <p className="mb-4 text-xs text-muted-foreground">Connected as @{profile.x_username}</p>}
+              {!profile?.x_username && <div className="mb-4" />}
+              <Button onClick={handleX} disabled={isLinkingX} className="w-full" variant="secondary">
+                {isLinkingX && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {profile?.x_connected ? "Disconnect X" : "Connect X"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Persona Defaults</CardTitle>
+            <CardDescription>Apply defaults for faster persona creation.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Public by default</p>
+                <p className="text-xs text-muted-foreground">New personas are automatically public.</p>
+              </div>
+              <Switch checked={defaultPublic} onCheckedChange={setDefaultPublic} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Show in explore</p>
+                <p className="text-xs text-muted-foreground">Let community users discover your profile/personas.</p>
+              </div>
+              <Switch checked={showInExplore} onCheckedChange={setShowInExplore} />
+            </div>
+            <Button onClick={handleSavePrefs} disabled={isSavingPrefs} className="w-full">
+              {isSavingPrefs && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save defaults
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive"><Trash2 className="h-5 w-5" />Danger Zone</CardTitle>
+          <CardDescription>Deleting your account permanently removes personas, posts, and transactions.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">Delete Account</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete account permanently?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action is irreversible. Your posts, personas, coins history, and account data will be removed.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {isDeleting ? "Deleting..." : "Delete Account"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
     </div>
   )
 }

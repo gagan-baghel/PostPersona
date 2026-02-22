@@ -1,9 +1,9 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { NextResponse, type NextRequest } from "next/server"
 
-// SECURITY: This endpoint should be disabled in production
-// Set DUMMY_MODE to false in production environments
-const DUMMY_MODE = true
+import { getSessionUserIdFromRequest } from "@/lib/auth/session"
+import { convexMutation } from "@/lib/convex/client"
+
+const DUMMY_MODE = process.env.NODE_ENV !== "production"
 
 export async function POST(request: NextRequest) {
   if (!DUMMY_MODE) {
@@ -11,64 +11,36 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const supabase = await createServerClient()
+    const userId = getSessionUserIdFromRequest(request)
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { coins, packageId } = await request.json()
 
-    // Validate input
     if (!coins || typeof coins !== "number" || coins <= 0) {
       return NextResponse.json({ error: "Invalid coins amount" }, { status: 400 })
     }
 
-    // Get user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Fetch current balance
-    const { data: profile, error: fetchError } = await supabase
-      .from("profiles")
-      .select("coins")
-      .eq("id", user.id)
-      .single()
-
-    if (fetchError || !profile) {
-      return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 })
-    }
-
-    const newBalance = (profile.coins || 0) + coins
-
-    // Update coins atomically
-    const { error: updateError } = await supabase.from("profiles").update({ coins: newBalance }).eq("id", user.id)
-
-    if (updateError) {
-      return NextResponse.json({ error: "Failed to update coins" }, { status: 500 })
-    }
-
-    // Record transaction
-    const { error: txError } = await supabase.from("transactions").insert({
-      user_id: user.id,
-      type: "purchase",
+    const result = await convexMutation<any>("app:addCoins", {
+      userId,
       amount: coins,
-      balance_after: newBalance,
+      type: "purchase",
       description: `Dummy purchase: ${packageId} package`,
       metadata: { packageId, mode: "dummy" },
     })
 
-    if (txError) {
-      console.error("[v0] Failed to record transaction:", txError)
+    if (!result?.ok) {
+      return NextResponse.json({ error: "Failed to update coins" }, { status: 500 })
     }
 
     return NextResponse.json({
       success: true,
-      newBalance,
+      newBalance: result.newBalance,
       coinsAdded: coins,
     })
   } catch (error) {
-    console.error("[v0] Dummy purchase error:", error)
+    console.error("[Dummy Purchase] Error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

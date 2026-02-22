@@ -12,21 +12,16 @@ export default function SignUpSuccessPage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                d="M5 13l4 4L19 7"
               />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Check your email</h1>
-          <p className="mt-2 text-muted-foreground">
-            We've sent you a confirmation link. Please check your email to verify your account.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Account created</h1>
+          <p className="mt-2 text-muted-foreground">Your account is ready. Sign in to start creating posts.</p>
         </div>
 
         <div className="rounded-lg border bg-card p-6">
-          <p className="text-sm text-muted-foreground">
-            After confirming your email, you'll be able to sign in and start creating amazing LinkedIn content with AI
-            personas.
-          </p>
+          <p className="text-sm text-muted-foreground">You can now use persona-driven generation, image creation, and coin purchases.</p>
           <Button asChild className="mt-6 w-full">
             <Link href="/auth/login">Back to Sign In</Link>
           </Button>

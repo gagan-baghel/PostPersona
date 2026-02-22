@@ -1,15 +1,17 @@
-import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+
+import { getSessionUserIdFromRequest } from "@/lib/auth/session"
+import { convexMutation } from "@/lib/convex/client"
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get("code")
   const state = url.searchParams.get("state")
   const error = url.searchParams.get("error")
+  let nextPath = "/dashboard/generate"
 
   if (error) {
-    console.error("[v0] LinkedIn OAuth error:", error)
-    return redirect("/dashboard/generate?linkedin_error=" + error)
+    return redirect(`/dashboard/generate?linkedin_error=${encodeURIComponent(error)}`)
   }
 
   if (!code || !state) {
@@ -17,25 +19,32 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const userId = getSessionUserIdFromRequest(request)
 
-    if (!user) {
+    if (!userId) {
       return redirect("/auth/login")
     }
 
-    // Verify state matches user ID (CSRF protection)
-    const [userId] = state.split("-")
-    if (userId !== user.id) {
-      return redirect("/dashboard/generate?linkedin_error=invalid_state")
+    const stateData = JSON.parse(Buffer.from(state, "base64url").toString("utf8")) as {
+      userId?: string
+      nextPath?: string
+    }
+    const stateUserId = stateData.userId
+    if (typeof stateData.nextPath === "string" && stateData.nextPath.startsWith("/dashboard")) {
+      nextPath = stateData.nextPath
+    }
+    if (stateUserId !== userId) {
+      return redirect(`${nextPath}?linkedin_error=invalid_state`)
     }
 
-    // Exchange code for access token
-    const clientId = process.env.LINKEDIN_CLIENT_ID!
-    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET!
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/linkedin/callback`
+    const clientId = process.env.LINKEDIN_CLIENT_ID
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    const redirectUri = `${appUrl}/api/linkedin/callback`
+
+    if (!clientId || !clientSecret) {
+      return redirect(`${nextPath}?linkedin_error=missing_config`)
+    }
 
     const tokenResponse = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
       method: "POST",
@@ -55,7 +64,6 @@ export async function GET(request: Request) {
 
     const { access_token } = await tokenResponse.json()
 
-    // Fetch LinkedIn profile
     const profileResponse = await fetch("https://api.linkedin.com/v2/userinfo", {
       headers: { Authorization: `Bearer ${access_token}` },
     })
@@ -66,23 +74,20 @@ export async function GET(request: Request) {
 
     const profile = await profileResponse.json()
 
-    // Store in database
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        linkedin_connected: true,
-        linkedin_access_token: access_token,
-        linkedin_profile_id: profile.sub,
-      })
-      .eq("id", user.id)
+    const result = await convexMutation<any>("app:setLinkedinConnection", {
+      userId,
+      connected: true,
+      accessToken: access_token,
+      profileId: profile.sub,
+    })
 
-    if (updateError) {
-      throw updateError
+    if (!result?.ok) {
+      throw new Error("Failed to store LinkedIn profile")
     }
 
-    return redirect("/dashboard/generate?linkedin_success=true")
-  } catch (error) {
-    console.error("[v0] LinkedIn callback error:", error)
-    return redirect("/dashboard/generate?linkedin_error=callback_failed")
+    return redirect(`${nextPath}?linkedin_success=true`)
+  } catch (callbackError) {
+    console.error("[LinkedIn Callback] Error:", callbackError)
+    return redirect(`${nextPath}?linkedin_error=callback_failed`)
   }
 }

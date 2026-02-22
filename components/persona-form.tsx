@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,47 +34,39 @@ export function PersonaForm({ persona, onSuccess }: { persona?: Persona; onSucce
         setIsLoading(true)
         setError(null)
 
-        const supabase = createClient()
-        const {
-            data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) {
-            setError("You must be logged in")
-            setIsLoading(false)
-            return
-        }
-
         try {
             if (persona) {
-                // Update existing persona
-                const { error } = await supabase
-                    .from("personas")
-                    .update({
+                const response = await fetch(`/api/personas/${persona.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
                         name,
-                        title: title || null,
+                        title: title || undefined,
                         personality,
                         writing_style: writingStyle,
-                        avatar_url: avatarUrl || null,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("id", persona.id)
-
-                if (error) throw error
-            } else {
-                // Create new persona
-                const { error } = await supabase.from("personas").insert({
-                    user_id: user.id,
-                    name,
-                    title: title || null,
-                    personality,
-                    writing_style: writingStyle,
-                    avatar_url: avatarUrl || null,
-                    is_public: false,
-                    is_app_provided: false,
+                        avatar_url: avatarUrl || undefined,
+                    }),
                 })
-
-                if (error) throw error
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}))
+                    throw new Error(payload.error || "Failed to update persona")
+                }
+            } else {
+                const response = await fetch("/api/personas", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name,
+                        title: title || undefined,
+                        personality,
+                        writing_style: writingStyle,
+                        avatar_url: avatarUrl || undefined,
+                    }),
+                })
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}))
+                    throw new Error(payload.error || "Failed to create persona")
+                }
             }
 
             // Invalidate cache

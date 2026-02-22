@@ -2,138 +2,235 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { usePersonas } from "@/hooks/use-personas"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { usePosts } from "@/hooks/use-posts"
+import { useProfile } from "@/hooks/use-profile"
+import { useDashboardAnalytics } from "@/hooks/use-dashboard-analytics"
 import { DashboardSkeleton } from "@/components/skeletons/dashboard-skeleton"
 import { PostCard } from "@/components/post-card"
-import { Newspaper } from "lucide-react"
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+import {
+  Activity,
+  BarChart3,
+  Coins,
+  Globe,
+  Linkedin,
+  PenSquare,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Twitter,
+} from "lucide-react"
+
+const COLORS = ["#2563eb", "#0ea5e9", "#10b981", "#f59e0b"]
 
 export default function DashboardPage() {
-  const { personas, isLoading: personasLoading } = usePersonas()
   const { posts, isLoading: postsLoading } = usePosts()
+  const { profile } = useProfile()
+  const { analytics, isLoading: analyticsLoading } = useDashboardAnalytics()
 
-  if (personasLoading || postsLoading) {
+  if (postsLoading || analyticsLoading || !analytics) {
     return <DashboardSkeleton />
   }
 
-  const personaCount = personas.length
-  const postCount = posts.length
+  const greetingName = profile?.full_name?.trim() || "there"
+  const totalPosts = analytics.totals.posts
+  const publishMix = [
+    { name: "LinkedIn", value: analytics.totals.postedToLinkedin },
+    { name: "X", value: analytics.totals.postedToX },
+    {
+      name: "Drafts",
+      value: Math.max(0, totalPosts - analytics.totals.postedToLinkedin - analytics.totals.postedToX),
+    },
+  ]
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="mt-2 text-muted-foreground">Welcome back! Ready to create amazing content?</p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="mb-8 grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">AI Personas</p>
-              <p className="mt-2 text-3xl font-bold">{personaCount}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-              <svg
-                className="h-6 w-6 text-primary"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-            </div>
+    <div className="space-y-8 p-2 sm:p-4 md:p-6">
+      <section className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-sky-500/10 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Welcome back, {greetingName}</h1>
+            <p className="mt-2 text-muted-foreground">Create, publish, and track persona-based content across LinkedIn and X.</p>
           </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Posts Created</p>
-              <p className="mt-2 text-3xl font-bold">{postCount}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10">
-              <svg
-                className="h-6 w-6 text-accent"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">This Month</p>
-              <p className="mt-2 text-3xl font-bold">{postCount}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-chart-2/10">
-              <svg
-                className="h-6 w-6 text-chart-2"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Activity / History */}
-      <div className="rounded-lg bg-background">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Newspaper className="h-5 w-5 text-primary" />
-            Recent Posts
-          </h2>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/history">View All</Link>
-          </Button>
-        </div>
-
-        {posts && posts.length > 0 ? (
-          <div className="space-y-6">
-            {posts.slice(0, 5).map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border bg-card p-12 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
-              <svg className="h-8 w-8 text-accent" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
-            </div>
-            <h3 className="mt-6 text-lg font-semibold">No posts yet</h3>
-            <p className="mt-2 text-sm text-muted-foreground">Generate your first post to see it here</p>
-            <Button asChild className="mt-6" size="lg">
-              <Link href="/dashboard/generate">Create Your First Post</Link>
+          <div className="flex gap-2">
+            <Button asChild>
+              <Link href="/dashboard/generate">
+                <PenSquare className="mr-2 h-4 w-4" />
+                Create Post
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="bg-transparent">
+              <Link href="/dashboard/personas">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Explore Personas
+              </Link>
             </Button>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total Posts</CardDescription>
+            <CardTitle className="text-3xl">{analytics.totals.posts}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Last 30 days: {analytics.totals.posts30d}</span>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Personas</CardDescription>
+            <CardTitle className="text-3xl">{analytics.totals.personas}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Public: {analytics.totals.publicPersonas}</span>
+            <Users className="h-4 w-4 text-primary" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Coin Balance</CardDescription>
+            <CardTitle className="text-3xl">{analytics.totals.coins}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Spent 30d: {analytics.totals.coinsSpent30d}</span>
+            <Coins className="h-4 w-4 text-primary" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Connected Channels</CardDescription>
+            <CardTitle className="text-3xl">
+              {Number(analytics.connections.linkedin) + Number(analytics.connections.x)} / 2
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center gap-2">
+            <Badge variant={analytics.connections.linkedin ? "default" : "secondary"}>
+              <Linkedin className="mr-1 h-3 w-3" /> LinkedIn
+            </Badge>
+            <Badge variant={analytics.connections.x ? "default" : "secondary"}>
+              <Twitter className="mr-1 h-3 w-3" /> X
+            </Badge>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Publishing Activity (7 days)
+            </CardTitle>
+            <CardDescription>How often you are creating content this week.</CardDescription>
+          </CardHeader>
+          <CardContent className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={analytics.weeklySeries}>
+                <defs>
+                  <linearGradient id="postsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Area type="monotone" dataKey="count" stroke="#2563eb" fill="url(#postsGradient)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-primary" />
+              Publish Mix
+            </CardTitle>
+            <CardDescription>Where your posts are ending up.</CardDescription>
+          </CardHeader>
+          <CardContent className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={publishMix} dataKey="value" nameKey="name" innerRadius={60} outerRadius={95} label>
+                  {publishMix.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recent Posts</CardTitle>
+              <CardDescription>Your latest generated content</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/history">View history</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {posts.length > 0 ? (
+              <div className="space-y-4">
+                {posts.slice(0, 3).map((post) => (
+                  <PostCard key={post.id} post={post} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-8 text-center">
+                <Activity className="mx-auto h-8 w-8 text-muted-foreground" />
+                <p className="mt-3 text-sm text-muted-foreground">No posts yet. Generate your first one.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Growth Snapshot</CardTitle>
+            <CardDescription>Simple view of momentum this week</CardDescription>
+          </CardHeader>
+          <CardContent className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analytics.weeklySeries}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tickFormatter={(v) => v.slice(5)} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#10b981" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   )
 }

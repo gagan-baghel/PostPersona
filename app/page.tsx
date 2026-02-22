@@ -1,15 +1,12 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { getSessionUserIdFromServerCookies } from "@/lib/auth/session"
 
 export default async function HomePage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await getSessionUserIdFromServerCookies()
 
-  if (user) {
+  if (userId) {
     redirect("/dashboard")
   }
 
@@ -74,7 +71,7 @@ export default async function HomePage() {
               </div>
               <h3 className="text-lg font-semibold">AI Personas</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Create custom AI avatars that capture your unique personality, expertise, and writing style.
+                Create custom AI personas that capture your unique personality, expertise, and writing style.
               </p>
             </div>
 

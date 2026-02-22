@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -23,6 +22,7 @@ interface Post {
   image_url: string | null
   image_preset: string | null
   posted_to_linkedin: boolean
+  posted_to_x?: boolean
   personas: {
     id: string
     name: string
@@ -40,15 +40,15 @@ export function PostCard({ post }: { post: Post }) {
 
   const handleDelete = async () => {
     setIsDeleting(true)
-    const supabase = createClient()
+    const response = await fetch(`/api/posts/${post.id}`, {
+      method: "DELETE",
+    })
 
-    const { error } = await supabase.from("posts").delete().eq("id", post.id)
-
-    if (!error) {
+    if (response.ok) {
       router.refresh()
       setShowDeleteDialog(false)
     } else {
-      console.error("[v0] Error deleting post:", error)
+      console.error("Error deleting post")
     }
     setIsDeleting(false)
   }
@@ -117,6 +117,12 @@ export function PostCard({ post }: { post: Post }) {
                       </svg>
                       Posted
                     </span>
+                  </>
+                )}
+                {post.posted_to_x && (
+                  <>
+                    <span>•</span>
+                    <span className="font-medium">Posted to X</span>
                   </>
                 )}
               </div>

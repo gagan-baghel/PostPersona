@@ -1,22 +1,19 @@
 import { redirect } from "next/navigation"
-import { createServerClient } from "@/lib/supabase/server"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Coins } from "lucide-react"
 import Link from "next/link"
+import { getSessionUserIdFromServerCookies } from "@/lib/auth/session"
+import { convexQuery } from "@/lib/convex/client"
 
 export default async function SuccessPage() {
-  const supabase = await createServerClient()
+  const userId = await getSessionUserIdFromServerCookies()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  if (!userId) {
     redirect("/auth/login")
   }
 
-  const { data: profile } = await supabase.from("profiles").select("coins").eq("id", user.id).single()
+  const profile = await convexQuery<any>("app:getProfile", { userId })
 
   return (
     <div className="flex items-center justify-center min-h-[60vh]">

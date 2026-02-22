@@ -1,40 +1,60 @@
-const fs = require('fs');
-const path = require('path');
-const dotenv = require('dotenv');
+const fs = require("fs")
+const path = require("path")
+const dotenv = require("dotenv")
 
-console.log('🔍 Checking Environment Variables...');
+console.log("Checking required environment variables...")
 
-const envPath = path.resolve(process.cwd(), '.env.local');
+const envPath = path.resolve(process.cwd(), ".env.local")
 
 if (!fs.existsSync(envPath)) {
-    console.error('❌ .env.local file NOT FOUND at:', envPath);
-    process.exit(1);
+  console.error(".env.local not found at:", envPath)
+  process.exit(1)
 }
 
-const envConfig = dotenv.parse(fs.readFileSync(envPath));
+const envConfig = dotenv.parse(fs.readFileSync(envPath))
 
 const REQUIRED_KEYS = [
-    'NEXT_PUBLIC_RAZORPAY_KEY_ID',
-    'RAZORPAY_KEY_ID',
-    'RAZORPAY_KEY_SECRET',
-    'SUPABASE_SERVICE_ROLE_KEY'
-];
+  "NEXT_PUBLIC_CONVEX_URL",
+  "CONVEX_ADMIN_KEY",
+  "SESSION_SECRET",
+  "RAZORPAY_KEY_ID",
+  "RAZORPAY_KEY_SECRET",
+  "OPENROUTER_API_KEY",
+]
 
-let hasError = false;
+const OPTIONAL_KEYS = [
+  "NEXT_PUBLIC_APP_URL",
+  "GEMINI_API_KEY",
+  "DEAPI_API_KEY",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
+  "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME",
+  "LINKEDIN_CLIENT_ID",
+  "LINKEDIN_CLIENT_SECRET",
+  "X_CLIENT_ID",
+  "X_CLIENT_SECRET",
+]
 
-REQUIRED_KEYS.forEach(key => {
-    if (envConfig[key]) {
-        console.log(`✅ ${key}: Found`);
-    } else {
-        console.error(`❌ ${key}: MISSING`);
-        hasError = true;
-    }
-});
+let hasError = false
+
+for (const key of REQUIRED_KEYS) {
+  if (envConfig[key]) {
+    console.log(`OK   ${key}`)
+  } else {
+    console.error(`MISS ${key}`)
+    hasError = true
+  }
+}
+
+for (const key of OPTIONAL_KEYS) {
+  if (envConfig[key]) {
+    console.log(`OPT  ${key}`)
+  }
+}
 
 if (hasError) {
-    console.error('\n⚠️  Some keys are missing in .env.local!');
-    console.log('Please make sure you saved the file correctly.');
-} else {
-    console.log('\n✅ All keys are present in .env.local');
-    console.log('If you still see errors, try stopping the server (Ctrl+C) and running "npm run dev" again.');
+  console.error("\nMissing one or more required keys.")
+  process.exit(1)
 }
+
+console.log("\nAll required environment variables are present.")

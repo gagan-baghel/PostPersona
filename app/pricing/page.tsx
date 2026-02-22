@@ -1,12 +1,9 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/server"
+import { getSessionUserIdFromServerCookies } from "@/lib/auth/session"
 
 export default async function PricingPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getSessionUserIdFromServerCookies()
 
   const plans = [
     {
@@ -15,7 +12,7 @@ export default async function PricingPage() {
       period: "forever",
       description: "Perfect for getting started with AI-powered content creation",
       features: [
-        "1 AI Avatar",
+        "1 AI Persona",
         "10 Posts per month",
         "Basic personality customization",
         "Post history",
@@ -31,7 +28,7 @@ export default async function PricingPage() {
       period: "per month",
       description: "For professionals who need unlimited content generation",
       features: [
-        "Unlimited AI Avatars",
+        "Unlimited AI Personas",
         "Unlimited Posts",
         "Advanced personality & style options",
         "Post analytics",
@@ -50,7 +47,7 @@ export default async function PricingPage() {
       features: [
         "Everything in Pro",
         "Up to 5 team members",
-        "Shared avatar library",
+        "Shared persona library",
         "Team analytics dashboard",
         "Custom branding",
         "Dedicated account manager",
@@ -175,8 +172,8 @@ export default async function PricingPage() {
               <div className="rounded-lg border bg-card p-6">
                 <h3 className="mb-2 font-semibold">How does the AI generation work?</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  Our AI uses your avatar's personality and writing style to create authentic LinkedIn posts. Each
-                  avatar learns from your preferences to generate content that sounds like you.
+                  Our AI uses your persona's personality and writing style to create authentic LinkedIn posts. Each
+                  persona learns from your preferences to generate content that sounds like you.
                 </p>
               </div>
 

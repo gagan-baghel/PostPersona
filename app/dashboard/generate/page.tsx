@@ -17,7 +17,7 @@ export default function GeneratePage() {
         <div className="mx-auto max-w-4xl">
           <div className="mb-8">
             <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-            <p className="mt-2 text-muted-foreground">Create engaging LinkedIn content with your AI personas</p>
+            <p className="mt-2 text-muted-foreground">Create once, then publish to LinkedIn or X with your AI personas</p>
           </div>
           <PersonaGridSkeleton />
         </div>
@@ -33,7 +33,7 @@ export default function GeneratePage() {
         <div className="mx-auto max-w-4xl">
           <div className="mb-8">
             <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-            <p className="mt-2 text-muted-foreground">Create engaging LinkedIn content with your AI personas</p>
+            <p className="mt-2 text-muted-foreground">Create once, then publish to LinkedIn or X with your AI personas</p>
           </div>
 
           <div className="rounded-lg border bg-card p-12 text-center">
@@ -54,7 +54,7 @@ export default function GeneratePage() {
             </div>
             <h2 className="mt-6 text-xl font-semibold">No AI Personas Yet</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create your first AI persona to start generating personalized LinkedIn posts.
+              Create your first AI persona to start generating personalized social posts.
             </p>
             <Button asChild className="mt-6">
               <Link href="/dashboard/personas">Create Persona</Link>
@@ -70,7 +70,7 @@ export default function GeneratePage() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-          <p className="mt-2 text-muted-foreground">Create engaging LinkedIn content with your AI personas</p>
+          <p className="mt-2 text-muted-foreground">Create once, then publish to LinkedIn or X with your AI personas</p>
         </div>
 
         <PostGenerator avatars={userPersonas} selectedAvatar={null} />

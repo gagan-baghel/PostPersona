@@ -1,39 +1,61 @@
-import { createClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
+
+import { SavePostSchema } from "@/lib/validation/schemas"
+import { getSessionUserIdFromRequest } from "@/lib/auth/session"
+import { convexMutation } from "@/lib/convex/client"
 
 export async function POST(request: Request) {
   try {
-    const { personaId, topic, content, imageUrl, imagePrompt, imagePreset } = await request.json()
+    const body = await request.json()
 
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return new Response("Unauthorized", { status: 401 })
+    const validation = SavePostSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: validation.error.format(),
+        },
+        { status: 400 },
+      )
     }
 
-    // Save post to database
-    const { error } = await supabase.from("posts").insert({
-      user_id: user.id,
-      persona_id: personaId,
+    const userId = getSessionUserIdFromRequest(request)
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const {
+      personaId,
       topic,
       content,
-      image_url: imageUrl,
-      image_prompt: imagePrompt,
-      image_preset: imagePreset,
+      imageUrl,
+      cloudinaryPublicId,
+      cloudinarySecureUrl,
+      imagePreset,
+      imagePrompt,
+      aiModelVersion,
+    } = validation.data
+
+    const result = await convexMutation<any>("app:createPost", {
+      userId,
+      personaId,
+      topic,
+      content,
+      imageUrl: imageUrl || cloudinarySecureUrl || undefined,
+      cloudinaryPublicId: cloudinaryPublicId || undefined,
+      cloudinarySecureUrl: cloudinarySecureUrl || undefined,
+      imagePreset: imagePreset || undefined,
+      imagePrompt: imagePrompt || undefined,
+      aiModelVersion: aiModelVersion || "DeepSeek-V3.1-Nex-N1",
     })
 
-    if (error) {
-      console.error("[v0] Error saving post:", error)
-      return new Response("Failed to save post", { status: 500 })
+    if (!result?.ok) {
+      return NextResponse.json({ error: "Database transaction failed" }, { status: 500 })
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { "Content-Type": "application/json" },
-    })
+    return NextResponse.json({ success: true, postId: result.postId })
   } catch (error) {
-    console.error("[v0] Error in save-post:", error)
-    return new Response("Internal Server Error", { status: 500 })
+    console.error("[Save-Post API] Error:", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

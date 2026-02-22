@@ -1,50 +1,50 @@
-import { createClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
+import { randomUUID } from "crypto"
+
+import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const userId = getSessionUserIdFromRequest(request)
 
-    if (!user) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 })
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // In production, generate real LinkedIn OAuth URL
-    const clientId = process.env.LINKEDIN_CLIENT_ID || "dummy_client_id"
+    const body = await request.json().catch(() => ({}))
+    const requestedNextPath =
+      typeof body.nextPath === "string" && body.nextPath.startsWith("/dashboard") ? body.nextPath : "/dashboard/generate"
+
+    const clientId = process.env.LINKEDIN_CLIENT_ID
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    if (!clientId) {
+      return NextResponse.json(
+        { error: "LinkedIn is not configured. Missing LINKEDIN_CLIENT_ID." },
+        { status: 400 },
+      )
+    }
+
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/linkedin/callback`
-    const state = `${user.id}-${Date.now()}` // CSRF protection
-    const scope = "openid profile email w_member_social" // LinkedIn posting permissions
+    const statePayload = Buffer.from(
+      JSON.stringify({
+        userId,
+        ts: Date.now(),
+        nextPath: requestedNextPath,
+        nonce: randomUUID(),
+      }),
+      "utf8",
+    ).toString("base64url")
+    const scope = "openid profile email w_member_social"
 
-    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${encodeURIComponent(scope)}`
+    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${statePayload}&scope=${encodeURIComponent(scope)}`
 
-    // For now, simulate connection by directly updating the database
-    // Remove this in production and handle via callback
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        linkedin_connected: true,
-        linkedin_profile_id: `dummy_${user.id}`,
-      })
-      .eq("id", user.id)
-
-    if (error) {
-      console.error("[v0] Error updating LinkedIn status:", error)
-    }
-
-    // In production, return authUrl for redirect
-    // For dummy mode, return success immediately
-    return Response.json({
+    return NextResponse.json({
       success: true,
-      authUrl: "/dashboard/generate", // Redirect back to generate page
-      message: "LinkedIn connected successfully (dummy mode)",
+      authUrl,
+      message: `Continue in browser to connect LinkedIn from ${appUrl}`,
     })
   } catch (error) {
-    console.error("[v0] Error initiating LinkedIn connection:", error)
-    return Response.json(
-      { error: "Failed to connect LinkedIn: " + (error instanceof Error ? error.message : "Unknown error") },
-      { status: 500 },
-    )
+    console.error("[LinkedIn Connect] Error:", error)
+    return NextResponse.json({ error: "Failed to connect LinkedIn" }, { status: 500 })
   }
 }
