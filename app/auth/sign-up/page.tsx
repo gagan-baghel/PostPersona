@@ -57,15 +57,15 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">
+    <div className="flex min-h-screen w-full items-center justify-center bg-background p-3 sm:p-6">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">PersonaPost</h1>
-          <p className="mt-2 text-muted-foreground">Create your account</p>
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">PersonaPost</h1>
+          <p className="mt-1 text-muted-foreground">Create your account</p>
         </div>
 
-        <div className="rounded-lg border bg-card p-8 shadow-sm">
-          <form onSubmit={handleSignUp} className="space-y-6">
+        <div className="rounded-lg border bg-card p-4 sm:p-8 shadow-sm">
+          <form onSubmit={handleSignUp} className="space-y-4 sm:space-y-6">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input
@@ -123,7 +123,7 @@ export default function SignUpPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm">
+          <div className="mt-5 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
             <Link href="/auth/login" className="font-medium text-primary hover:underline">
               Sign in

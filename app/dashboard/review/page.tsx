@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
-import { CalendarClock, CheckCircle2, Clock3, GripVertical, Sparkles, XCircle } from "lucide-react"
+import { CalendarClock, CheckCircle2, Clock3, GripVertical, Sparkles, Trash2, XCircle } from "lucide-react"
 
 interface ReviewPost {
   id: string
@@ -63,7 +63,7 @@ export default function ReviewPage() {
   const [manualScheduleById, setManualScheduleById] = useState<Record<string, string>>({})
   const [workingId, setWorkingId] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [pendingAction, setPendingAction] = useState<{ id: string; action: "approve" | "reject" | "reschedule" } | null>(null)
+  const [pendingAction, setPendingAction] = useState<{ id: string; action: "approve" | "reject" | "reschedule" | "delete" } | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [scheduleWeekOpen, setScheduleWeekOpen] = useState(false)
   const [isGeneratingWeek, setIsGeneratingWeek] = useState(false)
@@ -131,9 +131,18 @@ export default function ReviewPage() {
     return "LinkedIn"
   }
 
-  const reviewAction = async (id: string, action: "approve" | "reject" | "reschedule") => {
+  const reviewAction = async (id: string, action: "approve" | "reject" | "reschedule" | "delete") => {
     setWorkingId(id)
     try {
+      if (action === "delete") {
+        const response = await fetch(`/api/posts/${id}`, { method: "DELETE" })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.error || "Delete failed")
+        toast.success("Post deleted from schedule")
+        await load()
+        return
+      }
+
       const body: Record<string, unknown> = { action }
       if (action === "reject") {
         body.reviewNotes = notesById[id] || "Needs revision"
@@ -152,7 +161,9 @@ export default function ReviewPage() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || "Action failed")
 
-      toast.success(action === "approve" ? "Approved and scheduled" : action === "reject" ? "Rejected" : "Rescheduled")
+      toast.success(
+        action === "approve" ? "Approved and scheduled" : action === "reject" ? "Rejected" : "Rescheduled",
+      )
       await load()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Action failed")
@@ -161,7 +172,7 @@ export default function ReviewPage() {
     }
   }
 
-  const askConfirmation = (id: string, action: "approve" | "reject" | "reschedule") => {
+  const askConfirmation = (id: string, action: "approve" | "reject" | "reschedule" | "delete") => {
     setPendingAction({ id, action })
     setConfirmOpen(true)
   }
@@ -248,7 +259,7 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="space-y-4 p-2 sm:p-4 md:p-6">
+    <div className="space-y-3 p-1 sm:p-2 md:p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold">Review Queue</h1>
@@ -261,7 +272,7 @@ export default function ReviewPage() {
         </Button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-3 xl:grid-cols-2">
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Pending Review</h2>
           {isLoading ? (
@@ -271,7 +282,7 @@ export default function ReviewPage() {
           ) : (
             reviewPosts.map((post) => (
               <Card key={post.id}>
-                <CardContent className="space-y-4 p-5">
+                <CardContent className="space-y-3 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-medium">{post.topic}</p>
@@ -289,11 +300,11 @@ export default function ReviewPage() {
                     onChange={(e) => setNotesById((prev) => ({ ...prev, [post.id]: e.target.value }))}
                     rows={2}
                   />
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => askConfirmation(post.id, "approve")} disabled={workingId === post.id}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <Button className="w-full sm:w-auto" onClick={() => askConfirmation(post.id, "approve")} disabled={workingId === post.id}>
                       <CheckCircle2 className="mr-2 h-4 w-4" /> Approve & Add to Queue
                     </Button>
-                    <Button variant="destructive" onClick={() => askConfirmation(post.id, "reject")} disabled={workingId === post.id}>
+                    <Button className="w-full sm:w-auto" variant="destructive" onClick={() => askConfirmation(post.id, "reject")} disabled={workingId === post.id}>
                       <XCircle className="mr-2 h-4 w-4" /> Reject
                     </Button>
                   </div>
@@ -323,7 +334,7 @@ export default function ReviewPage() {
                   setDraggingId(null)
                 }}
               >
-                <CardContent className="space-y-3 p-5">
+                <CardContent className="space-y-3 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -352,6 +363,13 @@ export default function ReviewPage() {
                     </div>
                     <Button variant="outline" className="bg-transparent" onClick={() => askConfirmation(post.id, "reschedule")} disabled={workingId === post.id}>
                       <CalendarClock className="mr-2 h-4 w-4" /> Reschedule
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => askConfirmation(post.id, "delete")}
+                      disabled={workingId === post.id}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
                   </div>
                 </CardContent>
@@ -424,6 +442,7 @@ export default function ReviewPage() {
               {pendingAction?.action === "approve" && "Approve this post and add it to the scheduled queue?"}
               {pendingAction?.action === "reject" && "Reject this post? It will not be posted."}
               {pendingAction?.action === "reschedule" && "Apply this new schedule time for the post?"}
+              {pendingAction?.action === "delete" && "Delete this scheduled post permanently?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -45,8 +45,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <DashboardNav />
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="border-b bg-card px-4 md:px-6 py-3 flex items-center justify-between">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="border-b bg-card px-2 sm:px-3 md:px-5 py-2.5 flex items-center justify-between gap-2 min-w-0">
           {/* Mobile Menu */}
           <div className="md:hidden">
             <MobileNav />
@@ -55,17 +55,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Coins Display - Clickable and Alerts when low */}
           <Link
             href="/dashboard/coins"
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ml-auto transition-colors ${(coins < 10 && !coinsLoading)
+            className={`flex max-w-[58vw] sm:max-w-none items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs sm:text-sm ml-auto transition-colors ${(coins < 10 && !coinsLoading)
               ? "bg-red-100 text-red-600 border border-red-200 animate-pulse"
               : "bg-primary/10 hover:bg-primary/20"
               }`}
           >
             <Coins className={`h-4 w-4 ${(coins < 10 && !coinsLoading) ? "text-red-500" : "text-primary"}`} />
-            <span className="font-semibold">{coinsLoading ? '...' : coins}</span>
+            <span className="font-semibold truncate">{coinsLoading ? '...' : coins}</span>
             <span className={`hidden sm:inline ${(coins < 10 && !coinsLoading) ? "text-red-500" : "text-muted-foreground"}`}>coins</span>
           </Link>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-4 min-w-0">{children}</main>
       </div>
     </div>
   )

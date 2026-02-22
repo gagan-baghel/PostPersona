@@ -116,8 +116,8 @@ export default function CalendarPage() {
   }, [postsByDay])
 
   return (
-    <div className="space-y-4 p-2 sm:p-4 md:p-6">
-      <div className="grid gap-4 xl:grid-cols-4">
+    <div className="space-y-3 p-1 sm:p-2 md:p-3">
+      <div className="grid gap-3 xl:grid-cols-4">
         <Card className="xl:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-xl">{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</CardTitle>
@@ -165,7 +165,7 @@ export default function CalendarPage() {
                 weekday: "rounded-md bg-muted/60 p-2 text-center text-xs font-medium text-muted-foreground",
                 weeks: "mt-1",
                 week: "grid grid-cols-7 gap-1",
-                day: "h-[108px] border rounded-md align-top",
+                day: "h-[92px] sm:h-[108px] border rounded-md align-top",
                 day_button: "h-full w-full text-left",
                 nav: "hidden",
                 month_caption: "hidden",

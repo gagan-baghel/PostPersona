@@ -12,6 +12,7 @@ export const GeneratePostSchema = z.object({
         .transform(sanitizeInput)
         // Basic filter for script/html injection risks in the topic itself
         .refine(val => !/<script|javascript:|on\w+=/i.test(val), "Invalid content detected in topic"),
+    targetPlatform: z.enum(["linkedin", "x", "both"]).optional().default("linkedin"),
 })
 
 export const ImagePromptSchema = z.object({

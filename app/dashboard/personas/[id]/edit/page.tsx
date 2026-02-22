@@ -60,13 +60,13 @@ export default function EditPersonaPage({ params }: { params: Promise<{ id: stri
 
     if (isLoading) {
         return (
-            <div className="p-4 sm:p-6 md:p-8">
+            <div className="p-2 sm:p-3 md:p-4">
                 <div className="mx-auto max-w-2xl">
-                    <div className="mb-8">
+                    <div className="mb-5">
                         <Skeleton className="h-9 w-48 mb-2" />
                         <Skeleton className="h-5 w-72" />
                     </div>
-                    <div className="rounded-lg border bg-card p-6 space-y-6">
+                    <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4 sm:space-y-6">
                         <Skeleton className="h-10 w-full" />
                         <Skeleton className="h-10 w-full" />
                         <Skeleton className="h-24 w-full" />
@@ -79,9 +79,9 @@ export default function EditPersonaPage({ params }: { params: Promise<{ id: stri
 
     if (error) {
         return (
-            <div className="p-4 sm:p-6 md:p-8">
+            <div className="p-2 sm:p-3 md:p-4">
                 <div className="mx-auto max-w-2xl">
-                    <div className="rounded-lg border bg-destructive/10 p-6 text-center">
+                    <div className="rounded-lg border bg-destructive/10 p-4 sm:p-6 text-center">
                         <h2 className="text-lg font-semibold text-destructive">{error}</h2>
                         <button
                             onClick={() => router.push("/dashboard/personas")}
@@ -100,11 +100,11 @@ export default function EditPersonaPage({ params }: { params: Promise<{ id: stri
     }
 
     return (
-        <div className="p-4 sm:p-6 md:p-8">
+        <div className="p-2 sm:p-3 md:p-4">
             <div className="mx-auto max-w-2xl">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold tracking-tight">Edit Persona</h1>
-                    <p className="mt-2 text-muted-foreground">Update your AI persona's personality and writing style</p>
+                <div className="mb-5">
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Edit Persona</h1>
+                    <p className="mt-1 text-muted-foreground">Update your AI persona.</p>
                 </div>
 
                 <PersonaForm persona={persona} />

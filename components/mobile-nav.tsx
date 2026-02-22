@@ -57,18 +57,18 @@ export function MobileNav() {
     <>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="md:hidden">
+          <Button variant="ghost" size="icon" className="md:hidden h-8 w-8 shrink-0">
             <Menu className="h-6 w-6" />
             <span className="sr-only">Toggle menu</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-72 p-0">
+        <SheetContent side="left" className="w-[86vw] max-w-72 p-0">
           <SheetHeader className="border-b p-4">
             <SheetTitle className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-primary" />
-              <div className="text-left">
+              <div className="text-left min-w-0">
                 <p className="text-xs text-muted-foreground">Workspace</p>
-                <p className="text-lg font-bold">PersonaPost</p>
+                <p className="text-lg font-bold truncate">PersonaPost</p>
               </div>
             </SheetTitle>
           </SheetHeader>
@@ -83,14 +83,14 @@ export function MobileNav() {
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors min-w-0",
                     isActive
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.title}
+                  <span className="truncate">{item.title}</span>
                 </Link>
               )
             })}

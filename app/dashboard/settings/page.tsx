@@ -177,7 +177,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-2 sm:p-4 md:p-6">
+      <div className="space-y-4 p-1 sm:p-2 md:p-3">
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -186,16 +186,16 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-4 p-2 sm:p-4 md:p-6">
+    <div className="space-y-3 p-1 sm:p-2 md:p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold"><Settings2 className="h-5 w-5 text-primary" />Settings</h1>
+        <h1 className="flex items-center gap-2 text-xl sm:text-2xl font-semibold"><Settings2 className="h-5 w-5 text-primary" />Settings</h1>
         <div className="flex items-center gap-2">
           <Badge variant="secondary">Channels: {connectionSummary}/2</Badge>
           <Badge variant="secondary">Coins: {profile?.coins || 0}</Badge>
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><UserRound className="h-5 w-5 text-primary" />Profile</CardTitle>
@@ -210,7 +210,7 @@ export default function SettingsPage() {
               <Label>Full Name</Label>
               <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" />
             </div>
-            <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+            <Button className="w-full sm:w-auto" onClick={handleSaveProfile} disabled={isSavingProfile}>
               {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save profile
             </Button>
@@ -223,7 +223,7 @@ export default function SettingsPage() {
             <CardDescription>Coins.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-3xl font-bold">{profile?.coins || 0}</p>
+            <p className="text-2xl sm:text-3xl font-bold">{profile?.coins || 0}</p>
             <p className="text-sm text-muted-foreground">Current coin balance</p>
             <Button asChild variant="outline" className="w-full bg-transparent">
               <Link href="/dashboard/coins">Buy coins</Link>
@@ -232,7 +232,7 @@ export default function SettingsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Social Channels</CardTitle>

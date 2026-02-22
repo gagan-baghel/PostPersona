@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { X_POST_CHAR_LIMIT, countXCharacters } from "@/lib/social/platform-limits"
 
 export async function POST(request: Request) {
   try {
@@ -32,8 +33,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "X account not connected" }, { status: 400 })
     }
 
-    const maxLen = 280
-    const tweetText = content.length > maxLen ? `${content.slice(0, maxLen - 1)}…` : content
+    const tweetText =
+      countXCharacters(content) > X_POST_CHAR_LIMIT
+        ? `${Array.from(content).slice(0, X_POST_CHAR_LIMIT - 1).join("")}…`
+        : content
 
     const tweetResponse = await fetch("https://api.x.com/2/tweets", {
       method: "POST",

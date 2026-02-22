@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { X_POST_CHAR_LIMIT, countXCharacters } from "@/lib/social/platform-limits"
 
 async function postToLinkedIn(profile: any, content: string, imageUrl?: string | null) {
   if (!profile?.linkedin_connected || !profile?.linkedin_access_token || !profile?.linkedin_profile_id) {
@@ -48,8 +49,10 @@ async function postToX(profile: any, content: string) {
     return { ok: false as const, reason: "x_not_connected" }
   }
 
-  const maxLen = 280
-  const tweetText = content.length > maxLen ? `${content.slice(0, maxLen - 1)}…` : content
+  const tweetText =
+    countXCharacters(content) > X_POST_CHAR_LIMIT
+      ? `${Array.from(content).slice(0, X_POST_CHAR_LIMIT - 1).join("")}…`
+      : content
   const response = await fetch("https://api.x.com/2/tweets", {
     method: "POST",
     headers: {

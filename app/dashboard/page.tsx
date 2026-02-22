@@ -36,28 +36,28 @@ export default function DashboardPage() {
   const firstName = profile?.full_name?.trim()?.split(" ")?.[0] || "Creator"
 
   return (
-    <div className="space-y-6 p-2 sm:p-4 md:p-6">
+    <div className="space-y-4 p-1 sm:p-2 md:p-3">
       <Card className="bg-gradient-to-br from-primary/10 via-background to-cyan-500/10">
-        <CardHeader>
-          <CardTitle className="text-3xl">{firstName}, this is your content control room</CardTitle>
+        <CardHeader className="p-4 sm:p-5">
+          <CardTitle className="text-xl sm:text-2xl">{firstName}, this is your content control room</CardTitle>
           <CardDescription>
             One clear workflow: generate drafts, approve queue, and let scheduled posts publish in order.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button asChild>
+        <CardContent className="flex flex-col gap-2 sm:flex-row p-4 pt-0 sm:p-5 sm:pt-0">
+          <Button asChild className="w-full sm:w-auto">
             <Link href="/dashboard/generate">
               <PenSquare className="mr-2 h-4 w-4" />
               Open Studio
             </Link>
           </Button>
-          <Button asChild variant="outline" className="bg-transparent">
+          <Button asChild variant="outline" className="w-full sm:w-auto bg-transparent">
             <Link href="/dashboard/review">
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Open Review Queue
             </Link>
           </Button>
-          <Button asChild variant="outline" className="bg-transparent">
+          <Button asChild variant="outline" className="w-full sm:w-auto bg-transparent">
             <Link href="/dashboard/calendar">
               <CalendarDays className="mr-2 h-4 w-4" />
               Open Calendar
@@ -66,60 +66,60 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-4">
             <CardDescription>Pending Review</CardDescription>
-            <CardTitle className="text-3xl">{pending.length}</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl">{pending.length}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <p className="text-sm text-muted-foreground">Needs your approval before any posting.</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-4">
             <CardDescription>Scheduled Queue</CardDescription>
-            <CardTitle className="text-3xl">{scheduled.length}</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl">{scheduled.length}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <p className="text-sm text-muted-foreground">Top queue item publishes first.</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-4">
             <CardDescription>Published</CardDescription>
-            <CardTitle className="text-3xl">{posted.length}</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl">{posted.length}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <p className="text-sm text-muted-foreground">Posts completed and moved to history.</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-4">
             <CardDescription>Credits</CardDescription>
-            <CardTitle className="text-3xl">{profile?.coins ?? 0}</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl">{profile?.coins ?? 0}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <p className="text-sm text-muted-foreground">{(profile?.coins ?? 0) < 10 ? "Low credits, consider topping up." : "Healthy credit balance."}</p>
           </CardContent>
         </Card>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-3">
+      <section className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader>
+          <CardHeader className="p-4">
             <CardTitle className="flex items-center gap-2">
               <Clock3 className="h-5 w-5 text-primary" />
               Next in Queue
             </CardTitle>
             <CardDescription>These are the next posts to be published, in exact order.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             {nextQueued.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
                 Queue is empty. Approve drafts in Review Queue to start scheduling.
               </div>
             ) : (
@@ -146,11 +146,11 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4">
             <CardTitle>Account Health</CardTitle>
             <CardDescription>Connection status and quick tools</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 p-4 pt-0">
             <div className="flex flex-wrap gap-2">
               <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>
                 <Linkedin className="mr-1 h-3.5 w-3.5" /> LinkedIn

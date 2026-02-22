@@ -73,7 +73,8 @@ Secondary pages like history/coins remain accessible but are no longer primary n
 - React 19 + TypeScript
 - Convex (data + backend functions)
 - SWR (data fetching)
-- Gemini API (`GEMINI_API_KEY`) with OpenRouter fallback
+- Grok/Groq-compatible API (`GROK_API_KEY`) using `llama-3.1-8b-instant` (with automatic fallback)
+- Gemini (`GEMINI_API_KEY`) for optional image generation
 - Cloudinary (media)
 - Razorpay (credits)
 
@@ -94,8 +95,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 SESSION_SECRET=<long-random-string>
 
 # AI
-GEMINI_API_KEY=<gemini-key>
-OPENROUTER_API_KEY=<optional-fallback>
+GROK_API_KEY=<grok-api-key>
+GEMINI_API_KEY=<optional-for-image-generation>
 
 # Payments
 RAZORPAY_KEY_ID=<key>

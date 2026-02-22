@@ -149,15 +149,15 @@ export default function PersonasPage() {
   }
 
   return (
-    <div className="space-y-4 p-2 sm:p-4 md:p-6">
+    <div className="space-y-3 p-1 sm:p-2 md:p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Personas</h1>
-        <Button asChild>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Personas</h1>
+        <Button asChild size="sm">
           <Link href="/dashboard/personas/new"><Plus className="mr-2 h-4 w-4" />Create Persona</Link>
         </Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-2 md:grid-cols-4">
         <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search persona name, role, personality" className="pl-9" />

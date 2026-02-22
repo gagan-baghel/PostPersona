@@ -31,6 +31,12 @@ export async function POST(request: Request) {
     return response
   } catch (error) {
     console.error("[Auth Login] Error:", error)
+    if (error instanceof Error && error.message.includes("Missing SESSION_SECRET")) {
+      return NextResponse.json(
+        { error: "Server auth configuration is missing (SESSION_SECRET)." },
+        { status: 503 },
+      )
+    }
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

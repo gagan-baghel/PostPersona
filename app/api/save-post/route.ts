@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { SavePostSchema } from "@/lib/validation/schemas"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation } from "@/lib/convex/client"
+import { enforceXLimit, needsXLimit } from "@/lib/social/platform-limits"
 
 export async function POST(request: Request) {
   try {
@@ -39,6 +40,21 @@ export async function POST(request: Request) {
       scheduledFor,
       reviewNotes,
     } = validation.data
+
+    if (needsXLimit(targetPlatform)) {
+      const xLimit = enforceXLimit(content)
+      if (!xLimit.ok) {
+        return NextResponse.json(
+          {
+            error: `X post exceeds character limit (${xLimit.count}/${xLimit.limit}).`,
+            code: "X_CHAR_LIMIT_EXCEEDED",
+            maxChars: xLimit.limit,
+            currentChars: xLimit.count,
+          },
+          { status: 400 },
+        )
+      }
+    }
 
     const result = await convexMutation<any>("app:createPost", {
       userId,

@@ -14,16 +14,16 @@ export default async function HomePage() {
     <div className="flex min-h-screen flex-col">
       {/* Header */}
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto flex h-16 items-center justify-between px-6">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary" />
-            <span className="text-xl font-bold">PersonaPost</span>
+        <div className="container mx-auto flex min-h-14 sm:h-16 items-center justify-between gap-2 px-3 sm:px-6">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary shrink-0" />
+            <span className="text-base sm:text-xl font-bold truncate">PersonaPost</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Button asChild variant="ghost">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <Button asChild variant="ghost" size="sm">
               <Link href="/auth/login">Sign In</Link>
             </Button>
-            <Button asChild>
+            <Button asChild size="sm">
               <Link href="/auth/sign-up">Get Started</Link>
             </Button>
           </div>

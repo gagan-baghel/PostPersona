@@ -40,7 +40,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased text-[14px] sm:text-[15px]">
         <SWRProvider>
           {children}
           <Analytics />

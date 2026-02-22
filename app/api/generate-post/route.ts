@@ -1,11 +1,156 @@
 import { NextResponse } from "next/server"
-import genAI from "@/lib/ai/gemini"
-import { buildStructuredPrompt } from "@/lib/ai/prompt-builder"
-import { GeneratePostSchema } from "@/lib/validation/schemas"
 import { z } from "zod"
 
+import { buildStructuredPrompt } from "@/lib/ai/prompt-builder"
+import { generateWithGrok } from "@/lib/ai/grok"
+import { GeneratePostSchema } from "@/lib/validation/schemas"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { enforceXLimit, needsXLimit } from "@/lib/social/platform-limits"
+
+const AIOutputSchema = z.object({
+  content: z.string().min(10, "Generated content too short"),
+  hashtags: z.array(z.string()).optional(),
+})
+
+class AIOutputFormatError extends Error {
+  constructor(message = "AI output format error") {
+    super(message)
+    this.name = "AIOutputFormatError"
+  }
+}
+
+function extractFirstJsonObject(raw: string) {
+  const start = raw.indexOf("{")
+  if (start < 0) return null
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (ch === "\\") {
+        escaped = true
+      } else if (ch === "\"") {
+        inString = false
+      }
+      continue
+    }
+
+    if (ch === "\"") {
+      inString = true
+      continue
+    }
+    if (ch === "{") depth++
+    if (ch === "}") {
+      depth--
+      if (depth === 0) {
+        return raw.slice(start, i + 1)
+      }
+    }
+  }
+
+  return null
+}
+
+function parseJsonResult(raw: string) {
+  try {
+    return JSON.parse(raw || "{}")
+  } catch {
+    const fenced = raw?.match(/```json\n([\s\S]*?)\n```/)?.[1]
+    if (fenced) {
+      try {
+        return JSON.parse(fenced)
+      } catch {
+        // Continue to object extraction.
+      }
+    }
+
+    const objectCandidate = extractFirstJsonObject(raw || "")
+    if (!objectCandidate) throw new AIOutputFormatError("Invalid JSON output")
+    try {
+      return JSON.parse(objectCandidate)
+    } catch {
+      throw new AIOutputFormatError("Unparseable JSON output")
+    }
+  }
+}
+
+function extractHashtagsFromText(text: string) {
+  const tags = Array.from(new Set((text.match(/#[\p{L}\p{N}_]+/gu) || []).map((t) => t.trim())))
+  return tags.slice(0, 8)
+}
+
+function normalizeRawToContent(raw: string) {
+  let text = raw || ""
+  text = text.replace(/```json/gi, "").replace(/```/g, "")
+  text = text.replace(/^([\s\S]*?)"content"\s*:\s*/i, "")
+  text = text.replace(/\s+/g, " ").trim()
+  if (text.length > 1200) text = `${text.slice(0, 1199)}…`
+  return text
+}
+
+function mapGenerateError(error: unknown): { status: number; body: Record<string, unknown> } {
+  const status = typeof (error as any)?.status === "number" ? (error as any).status : undefined
+  const message = error instanceof Error ? error.message : "Unknown error"
+  const lower = message.toLowerCase()
+
+  if (status === 429 || lower.includes("rate limit")) {
+    return {
+      status: 429,
+      body: {
+        error: "Model rate limit reached. Please retry shortly.",
+        code: "MODEL_RATE_LIMIT",
+        retryAfterSeconds: 20,
+      },
+    }
+  }
+
+  if (status === 401 || status === 403 || lower.includes("invalid api key")) {
+    return {
+      status: 503,
+      body: {
+        error: "AI provider authentication failed. Check GROK_API_KEY.",
+        code: "PROVIDER_AUTH_FAILED",
+      },
+    }
+  }
+
+  if (lower.includes("missing grok_api_key")) {
+    return {
+      status: 503,
+      body: { error: "Missing GROK_API_KEY in environment.", code: "MISSING_GROK_API_KEY" },
+    }
+  }
+
+  if (lower.includes("decommissioned") || lower.includes("no longer supported")) {
+    return {
+      status: 503,
+      body: {
+        error: "Configured AI model is no longer supported. Update GROK_MODEL.",
+        code: "MODEL_DEPRECATED",
+      },
+    }
+  }
+
+  if (error instanceof AIOutputFormatError || lower.includes("output format")) {
+    return {
+      status: 502,
+      body: {
+        error: "AI returned an invalid response format. Please retry.",
+        code: "INVALID_AI_OUTPUT",
+      },
+    }
+  }
+
+  return {
+    status: 500,
+    body: { error: "Internal Server Error", code: "INTERNAL_ERROR" },
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -16,103 +161,68 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid input", details: validation.error.format() }, { status: 400 })
     }
 
-    const { avatarId, topic } = validation.data
+    const { avatarId, topic, targetPlatform } = validation.data
     const userId = getSessionUserIdFromRequest(request)
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const profile = await convexQuery<any>("app:getProfile", { userId })
-    if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
-    }
+    const [profile, persona] = await Promise.all([
+      convexQuery<any>("app:getProfile", { userId }),
+      convexQuery<any>("app:getPersonaById", { personaId: avatarId, userId }),
+    ])
+
+    if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+    if (!persona) return NextResponse.json({ error: "Persona not found" }, { status: 404 })
 
     if (profile.coins < 3) {
       return NextResponse.json({ error: "Insufficient coins. Please purchase more." }, { status: 402 })
     }
 
-    const persona = await convexQuery<any>("app:getPersonaById", { personaId: avatarId, userId })
-    if (!persona) {
-      return NextResponse.json({ error: "Persona not found" }, { status: 404 })
-    }
-
-    const messages = buildStructuredPrompt(persona, topic)
-    let resultRaw = ""
-
-    try {
-      const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash",
-      })
-      const prompt = messages.map((m) => `${m.role.toUpperCase()}:\n${m.content}`).join("\n\n")
-      const generation = await model.generateContent(prompt)
-      resultRaw = generation.response.text() || ""
-    } catch (geminiError: any) {
-      const openRouterKey = process.env.OPENROUTER_API_KEY
-      if (!openRouterKey) {
-        throw geminiError
-      }
-
-      const fallbackResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openRouterKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "nex-agi/deepseek-v3.1-nex-n1:free",
-          messages,
-          temperature: 0.7,
-          max_tokens: 1000,
-        }),
-      })
-
-      const fallbackJson = await fallbackResponse.json().catch(() => ({}))
-      if (!fallbackResponse.ok) {
-        throw new Error(
-          fallbackJson?.error?.message ||
-            fallbackJson?.message ||
-            `Fallback provider failed with status ${fallbackResponse.status}`,
-        )
-      }
-
-      resultRaw = fallbackJson?.choices?.[0]?.message?.content || ""
-    }
-
-    let resultJson
-
-    const AIOutputSchema = z.object({
-      content: z.string().min(10, "Generated content too short"),
-      hashtags: z.array(z.string()).optional(),
+    const messages = buildStructuredPrompt(persona, topic, targetPlatform)
+    const generation = await generateWithGrok({
+      messages,
+      temperature: 0.35,
+      maxTokens: 520,
     })
+    const resultRaw = generation.text
 
+    let resultJson: { content: string; hashtags?: string[] }
     try {
-      const parsedRaw = JSON.parse(resultRaw || "{}")
+      const parsedRaw = parseJsonResult(resultRaw)
       const validated = AIOutputSchema.safeParse(parsedRaw)
-
-      if (validated.success) {
-        resultJson = validated.data
-      } else if (typeof parsedRaw.content === "string") {
+      if (!validated.success) {
+        if (typeof parsedRaw?.content !== "string") {
+          throw new AIOutputFormatError("AI generation failed output schema")
+        }
         resultJson = { content: parsedRaw.content, hashtags: [] }
       } else {
-        throw new Error("Invalid schema")
+        resultJson = validated.data
       }
-    } catch {
-      const match = resultRaw?.match(/```json\n([\s\S]*?)\n```/)
-      if (match && match[1]) {
-        try {
-          const innerJson = JSON.parse(match[1])
-          const validated = AIOutputSchema.safeParse(innerJson)
-          if (validated.success) {
-            resultJson = validated.data
-          } else {
-            throw new Error("Invalid inner schema")
-          }
-        } catch {
-          return NextResponse.json({ error: "AI generation failed output format. Please try again." }, { status: 500 })
-        }
-      } else {
-        return NextResponse.json({ error: "AI generation malfunction" }, { status: 500 })
+    } catch (formatError) {
+      const fallbackContent = normalizeRawToContent(resultRaw)
+      if (fallbackContent.length < 20) {
+        throw formatError
+      }
+      resultJson = {
+        content: fallbackContent,
+        hashtags: extractHashtagsFromText(fallbackContent),
+      }
+    }
+
+    if (needsXLimit(targetPlatform)) {
+      const xLimit = enforceXLimit(resultJson.content)
+      if (!xLimit.ok) {
+        return NextResponse.json(
+          {
+            error: `Generated content exceeds X limit (${xLimit.count}/${xLimit.limit}). Try a shorter topic.`,
+            code: "X_CHAR_LIMIT_EXCEEDED",
+            maxChars: xLimit.limit,
+            currentChars: xLimit.count,
+          },
+          { status: 422 },
+        )
       }
     }
 
@@ -131,26 +241,11 @@ export async function POST(request: Request) {
       success: true,
       data: resultJson,
       remainingCoins: deduction.newBalance,
+      model: generation.model,
     })
   } catch (error: any) {
     console.error("[Generate API] Error:", error)
-
-    if (error?.status === 429) {
-      const retryInfo = Array.isArray(error?.errorDetails)
-        ? error.errorDetails.find((d: any) => d?.["@type"]?.includes("RetryInfo"))
-        : null
-      const retryDelayRaw = retryInfo?.retryDelay as string | undefined
-      const retryAfterSeconds = typeof retryDelayRaw === "string" ? Number.parseInt(retryDelayRaw, 10) : undefined
-
-      return NextResponse.json(
-        {
-          error: "Gemini quota exceeded. Please retry shortly or enable billing/increase quota.",
-          retryAfterSeconds: Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : 40,
-        },
-        { status: 429 },
-      )
-    }
-
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    const mapped = mapGenerateError(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }

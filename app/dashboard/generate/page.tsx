@@ -13,10 +13,10 @@ export default function GeneratePage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 md:p-8">
+      <div className="p-2 sm:p-3 md:p-4">
         <div>
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Generate Post</h1>
           </div>
           <PersonaGridSkeleton />
         </div>
@@ -28,14 +28,14 @@ export default function GeneratePage() {
 
   if (!userPersonas.length) {
     return (
-      <div className="p-4 sm:p-6 md:p-8">
+      <div className="p-2 sm:p-3 md:p-4">
         <div>
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Generate Post</h1>
           </div>
 
-          <div className="rounded-lg border bg-card p-12 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <div className="rounded-lg border bg-card p-6 sm:p-10 text-center">
+            <div className="mx-auto flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10">
               <svg
                 className="h-8 w-8 text-primary"
                 fill="none"
@@ -64,28 +64,15 @@ export default function GeneratePage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <div className="grid gap-4 xl:grid-cols-5">
-        <div className="xl:col-span-4">
-          <div className="mb-4">
-            <h1 className="text-3xl font-bold tracking-tight">Generate Post</h1>
-          </div>
-          <PostGenerator avatars={userPersonas} selectedAvatar={null} />
+    <div className="p-2 sm:p-3 md:p-4">
+      <div>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Generate Post</h1>
+          <Button asChild variant="outline" className="bg-transparent">
+            <Link href="/dashboard/review?scheduleWeek=1">Schedule Week</Link>
+          </Button>
         </div>
-
-        <aside className="xl:col-span-1">
-          <div className="space-y-2 xl:sticky xl:top-4">
-            <Button asChild variant="outline" className="w-full justify-start bg-transparent">
-              <Link href="/dashboard/review?scheduleWeek=1">Schedule Week</Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start bg-transparent">
-              <Link href="/dashboard/review">Open Review Queue</Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start bg-transparent">
-              <Link href="/dashboard/calendar">Open Calendar</Link>
-            </Button>
-          </div>
-        </aside>
+        <PostGenerator avatars={userPersonas} selectedAvatar={null} />
       </div>
     </div>
   )

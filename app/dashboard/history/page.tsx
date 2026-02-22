@@ -18,7 +18,7 @@ export default function HistoryPage() {
   const filtered = useMemo(() => {
     const lower = query.toLowerCase().trim()
     return posts
-      .filter((post) => !["review", "scheduled", "rejected"].includes(post.workflow_status || "draft"))
+      .filter((post) => !["review", "scheduled"].includes(post.workflow_status || "draft"))
       .filter((post) => {
       const matchText =
         post.topic.toLowerCase().includes(lower) ||
@@ -37,10 +37,10 @@ export default function HistoryPage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 md:p-8">
+      <div className="p-2 sm:p-3 md:p-4">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Post History</h1>
-          <p className="mt-2 text-muted-foreground">View and manage your complete content archive.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Post History</h1>
+          <p className="mt-1 text-muted-foreground">View and manage your complete content archive.</p>
         </div>
         <PostHistorySkeleton />
       </div>
@@ -48,13 +48,13 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="space-y-6 p-2 sm:p-4 md:p-6">
+    <div className="space-y-4 p-1 sm:p-2 md:p-3">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Post History</h1>
-        <p className="mt-2 text-muted-foreground">Search, filter, and reuse your generated posts.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Post History</h1>
+        <p className="mt-1 text-muted-foreground">Search, filter, and reuse your generated posts.</p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-2 md:grid-cols-3">
         <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" placeholder="Search topic, content, persona" />
@@ -70,7 +70,7 @@ export default function HistoryPage() {
       </div>
 
       {filtered.length > 0 ? (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {filtered.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}

@@ -74,9 +74,9 @@ export function PostCard({ post }: { post: Post }) {
 
   return (
     <>
-      <div className="rounded-lg border bg-card p-6">
+      <div className="rounded-lg border bg-card p-3 sm:p-5">
         {/* Header */}
-        <div className="mb-4 flex items-start justify-between">
+        <div className="mb-3 flex items-start justify-between gap-2">
           <div className="flex items-start gap-3">
             {post.personas ? (
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
@@ -104,7 +104,7 @@ export function PostCard({ post }: { post: Post }) {
             )}
 
             <div className="min-w-0 flex-1">
-              <div className="font-medium">
+              <div className="font-medium text-sm sm:text-base">
                 {post.personas?.name || "Deleted Persona"}
                 {post.personas?.title && <span className="text-sm text-muted-foreground"> • {post.personas.title}</span>}
               </div>
@@ -172,7 +172,7 @@ export function PostCard({ post }: { post: Post }) {
         </div>
 
         {/* Content */}
-        <div className="mb-4 whitespace-pre-wrap text-sm leading-relaxed break-words">{displayContent}</div>
+        <div className="mb-3 whitespace-pre-wrap text-sm leading-relaxed break-words">{displayContent}</div>
 
         {shouldTruncate && (
           <Button variant="link" size="sm" onClick={() => setExpanded(!expanded)} className="mb-2 h-auto p-0 text-xs">
@@ -182,7 +182,7 @@ export function PostCard({ post }: { post: Post }) {
 
         {/* Image Display */}
         {post.image_url && (
-          <div className="my-4 overflow-hidden rounded-lg border">
+          <div className="my-3 overflow-hidden rounded-lg border">
             <img
               src={post.image_url || "/placeholder.svg"}
               alt="Post visual"
@@ -192,8 +192,8 @@ export function PostCard({ post }: { post: Post }) {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 border-t pt-4">
-          <Button onClick={handleCopy} size="sm" variant="outline" className="bg-transparent">
+        <div className="flex gap-2 border-t pt-3">
+          <Button onClick={handleCopy} size="sm" variant="outline" className="w-full sm:w-auto bg-transparent">
             <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
