@@ -161,6 +161,9 @@ export const createUser = mutationGeneric({
       auto_post_enabled: false,
       timezone: "UTC",
       linkedin_connected: false,
+      linkedin_refresh_token: undefined,
+      linkedin_access_token_expires_at: undefined,
+      linkedin_refresh_token_expires_at: undefined,
       x_connected: false,
       created_at: now,
       updated_at: now,
@@ -441,6 +444,12 @@ export const listPosts = queryGeneric({
           posted_at: post.posted_at ?? null,
           review_notes: post.review_notes ?? null,
           queue_position: post.queue_position ?? null,
+          campaign_id: post.campaign_id ?? null,
+          publish_attempt_count: post.publish_attempt_count ?? 0,
+          publish_last_attempt_at: post.publish_last_attempt_at ?? null,
+          publish_next_retry_at: post.publish_next_retry_at ?? null,
+          publish_last_error: post.publish_last_error ?? null,
+          delivery_status: post.delivery_status ?? "queued",
           personas: persona
             ? {
                 id: persona._id,
@@ -478,6 +487,7 @@ export const createPost = mutationGeneric({
     scheduledFor: v.optional(v.number()),
     reviewNotes: v.optional(v.string()),
     queuePosition: v.optional(v.number()),
+    campaignId: v.optional(v.id("campaigns")),
   },
   handler: async (ctx, args) => {
     if (args.personaId) {
@@ -507,6 +517,14 @@ export const createPost = mutationGeneric({
       scheduled_for: args.scheduledFor,
       review_notes: args.reviewNotes,
       queue_position: args.queuePosition,
+      campaign_id: args.campaignId,
+      publish_attempt_count: 0,
+      publish_last_attempt_at: undefined,
+      publish_next_retry_at: undefined,
+      publish_last_error: undefined,
+      publish_lock_until: undefined,
+      idempotency_key: undefined,
+      delivery_status: args.workflowStatus === "posted" ? "posted" : "queued",
       created_at: Date.now(),
     })
 
@@ -581,6 +599,15 @@ export const setPostWorkflow = mutationGeneric({
     if (typeof scheduledFor === "number") patch.scheduled_for = scheduledFor
     if (status === "approved" || status === "scheduled") patch.approved_at = Date.now()
     if (status === "posted") patch.posted_at = Date.now()
+    if (status === "scheduled") {
+      patch.publish_next_retry_at = undefined
+      patch.publish_last_error = undefined
+      patch.publish_lock_until = undefined
+      patch.delivery_status = "queued"
+    }
+    if (status === "rejected") {
+      patch.publish_lock_until = undefined
+    }
 
     await ctx.db.patch(postId, patch)
     return { ok: true }
@@ -628,6 +655,10 @@ export const approvePostAndAutoSchedule = mutationGeneric({
       approved_at: Date.now(),
       queue_position: maxQueue + 1,
       review_notes: undefined,
+      publish_next_retry_at: undefined,
+      publish_last_error: undefined,
+      publish_lock_until: undefined,
+      delivery_status: "queued",
     })
 
     await resequenceScheduledQueue(ctx, userId)
@@ -685,6 +716,10 @@ export const markScheduledPostPublished = mutationGeneric({
       linkedin_post_id: linkedinPostId ?? post.linkedin_post_id,
       posted_to_x: postedX ?? post.posted_to_x ?? false,
       x_post_id: xPostId ?? post.x_post_id,
+      publish_next_retry_at: undefined,
+      publish_last_error: undefined,
+      publish_lock_until: undefined,
+      delivery_status: "posted",
     })
 
     await resequenceScheduledQueue(ctx, userId)
@@ -693,14 +728,272 @@ export const markScheduledPostPublished = mutationGeneric({
   },
 })
 
+export const acquirePostPublishLock = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    lockMs: v.optional(v.number()),
+    idempotencyKey: v.optional(v.string()),
+  },
+  handler: async (ctx, { userId, postId, lockMs = 120000, idempotencyKey }) => {
+    const post = await ctx.db.get(postId)
+    if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
+    if ((post.workflow_status ?? "draft") !== "scheduled") return { ok: false, error: "NOT_SCHEDULED" as const }
+
+    const now = Date.now()
+    if (typeof post.publish_lock_until === "number" && post.publish_lock_until > now) {
+      return { ok: false, error: "LOCKED" as const }
+    }
+
+    await ctx.db.patch(postId, {
+      publish_lock_until: now + Math.max(15000, lockMs),
+      idempotency_key: idempotencyKey,
+      publish_last_attempt_at: now,
+      publish_attempt_count: (post.publish_attempt_count ?? 0) + 1,
+      delivery_status: "publishing",
+    })
+
+    return { ok: true }
+  },
+})
+
+export const markPostPublishFailure = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    errorMessage: v.string(),
+    maxAttempts: v.optional(v.number()),
+    baseDelaySeconds: v.optional(v.number()),
+  },
+  handler: async (ctx, { userId, postId, errorMessage, maxAttempts = 6, baseDelaySeconds = 90 }) => {
+    const post = await ctx.db.get(postId)
+    if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
+
+    const now = Date.now()
+    const attempts = Math.max(1, post.publish_attempt_count ?? 1)
+    const trimmed = errorMessage.trim().slice(0, 500)
+
+    if (attempts >= maxAttempts) {
+      await ctx.db.patch(postId, {
+        workflow_status: "dead_letter",
+        queue_position: undefined,
+        publish_lock_until: undefined,
+        publish_last_error: trimmed,
+        publish_next_retry_at: undefined,
+        delivery_status: "dead_letter",
+      })
+      await resequenceScheduledQueue(ctx, userId)
+      return { ok: true, deadLetter: true }
+    }
+
+    const delaySeconds = Math.min(60 * 60, baseDelaySeconds * Math.pow(2, Math.max(0, attempts - 1)))
+    const nextRetryAt = now + delaySeconds * 1000
+
+    await ctx.db.patch(postId, {
+      publish_lock_until: undefined,
+      publish_last_error: trimmed,
+      publish_next_retry_at: nextRetryAt,
+      delivery_status: "retrying",
+    })
+
+    return { ok: true, deadLetter: false, nextRetryAt }
+  },
+})
+
+export const replayDeadLetterPost = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("posts"),
+  },
+  handler: async (ctx, { userId, postId }) => {
+    const [post, posts] = await Promise.all([
+      ctx.db.get(postId),
+      ctx.db.query("posts").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect(),
+    ])
+    if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
+
+    const maxQueue = posts
+      .filter((p) => (p.workflow_status ?? "draft") === "scheduled")
+      .reduce((max, p) => Math.max(max, typeof p.queue_position === "number" ? p.queue_position : 0), 0)
+
+    await ctx.db.patch(postId, {
+      workflow_status: "scheduled",
+      queue_position: maxQueue + 1,
+      publish_lock_until: undefined,
+      publish_next_retry_at: undefined,
+      publish_last_error: undefined,
+      delivery_status: "queued",
+      review_notes: undefined,
+    })
+
+    await resequenceScheduledQueue(ctx, userId)
+    const updated = await ctx.db.get(postId)
+    return { ok: true, scheduledFor: updated?.scheduled_for ?? null, queuePosition: updated?.queue_position ?? null }
+  },
+})
+
+export const createCampaign = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    name: v.string(),
+    goal: v.string(),
+    audience: v.string(),
+    pillars: v.array(v.string()),
+    cadencePerWeek: v.number(),
+    kpiTarget: v.optional(v.string()),
+    primaryPersonaId: v.optional(v.id("personas")),
+  },
+  handler: async (ctx, { userId, name, goal, audience, pillars, cadencePerWeek, kpiTarget, primaryPersonaId }) => {
+    const now = Date.now()
+    const id = await ctx.db.insert("campaigns", {
+      user_id: userId,
+      name,
+      goal,
+      audience,
+      pillars,
+      cadence_per_week: cadencePerWeek,
+      kpi_target: kpiTarget,
+      primary_persona_id: primaryPersonaId,
+      status: "active",
+      created_at: now,
+      updated_at: now,
+    })
+    return { ok: true, campaignId: id }
+  },
+})
+
+export const updateCampaign = mutationGeneric({
+  args: {
+    userId: v.id("users"),
+    campaignId: v.id("campaigns"),
+    name: v.optional(v.string()),
+    goal: v.optional(v.string()),
+    audience: v.optional(v.string()),
+    pillars: v.optional(v.array(v.string())),
+    cadencePerWeek: v.optional(v.number()),
+    kpiTarget: v.optional(v.string()),
+    primaryPersonaId: v.optional(v.id("personas")),
+    status: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const campaign = await ctx.db.get(args.campaignId)
+    if (!campaign || campaign.user_id !== args.userId) return { ok: false, error: "FORBIDDEN" as const }
+
+    const patch: Record<string, unknown> = { updated_at: Date.now() }
+    if (typeof args.name === "string") patch.name = args.name
+    if (typeof args.goal === "string") patch.goal = args.goal
+    if (typeof args.audience === "string") patch.audience = args.audience
+    if (Array.isArray(args.pillars)) patch.pillars = args.pillars
+    if (typeof args.cadencePerWeek === "number") patch.cadence_per_week = args.cadencePerWeek
+    if (typeof args.kpiTarget === "string") patch.kpi_target = args.kpiTarget
+    if (typeof args.status === "string") patch.status = args.status
+    if (args.primaryPersonaId !== undefined) patch.primary_persona_id = args.primaryPersonaId
+
+    await ctx.db.patch(args.campaignId, patch)
+    return { ok: true }
+  },
+})
+
+export const listCampaigns = queryGeneric({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const [campaigns, posts] = await Promise.all([
+      ctx.db.query("campaigns").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect(),
+      ctx.db.query("posts").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect(),
+    ])
+
+    return campaigns
+      .map((campaign) => {
+        const scoped = posts.filter((p) => p.campaign_id === campaign._id)
+        return {
+          ...campaign,
+          id: campaign._id,
+          stats: {
+            totalPosts: scoped.length,
+            pending: scoped.filter((p) => (p.workflow_status ?? "draft") === "review").length,
+            scheduled: scoped.filter((p) => (p.workflow_status ?? "draft") === "scheduled").length,
+            posted: scoped.filter((p) => (p.workflow_status ?? "draft") === "posted").length,
+            deadLetter: scoped.filter((p) => (p.workflow_status ?? "draft") === "dead_letter").length,
+          },
+        }
+      })
+      .sort((a, b) => b.created_at - a.created_at)
+  },
+})
+
+export const getCampaignById = queryGeneric({
+  args: {
+    userId: v.id("users"),
+    campaignId: v.id("campaigns"),
+  },
+  handler: async (ctx, { userId, campaignId }) => {
+    const campaign = await ctx.db.get(campaignId)
+    if (!campaign || campaign.user_id !== userId) return null
+    return campaign
+  },
+})
+
+export const getCampaignAnalytics = queryGeneric({
+  args: {
+    userId: v.id("users"),
+    campaignId: v.id("campaigns"),
+  },
+  handler: async (ctx, { userId, campaignId }) => {
+    const [campaign, posts] = await Promise.all([
+      ctx.db.get(campaignId),
+      ctx.db.query("posts").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect(),
+    ])
+    if (!campaign || campaign.user_id !== userId) return null
+
+    const scoped = posts.filter((p) => p.campaign_id === campaignId)
+    const total = scoped.length
+    const posted = scoped.filter((p) => (p.workflow_status ?? "draft") === "posted")
+    const dead = scoped.filter((p) => (p.workflow_status ?? "draft") === "dead_letter")
+    const scheduled = scoped.filter((p) => (p.workflow_status ?? "draft") === "scheduled")
+    const review = scoped.filter((p) => (p.workflow_status ?? "draft") === "review")
+    const avgAttempts =
+      total > 0 ? scoped.reduce((sum, p) => sum + (p.publish_attempt_count ?? 0), 0) / total : 0
+
+    return {
+      campaign: {
+        ...campaign,
+        id: campaign._id,
+      },
+      totals: {
+        total,
+        posted: posted.length,
+        scheduled: scheduled.length,
+        review: review.length,
+        deadLetter: dead.length,
+        avgAttempts: Number(avgAttempts.toFixed(2)),
+      },
+      recentPosts: scoped
+        .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0))
+        .slice(0, 20)
+        .map((p) => ({
+          id: p._id,
+          topic: p.topic,
+          workflow_status: p.workflow_status ?? "draft",
+          publish_attempt_count: p.publish_attempt_count ?? 0,
+          publish_last_error: p.publish_last_error ?? null,
+          created_at: p.created_at,
+          posted_at: p.posted_at ?? null,
+        })),
+    }
+  },
+})
+
 export const setLinkedinConnection = mutationGeneric({
   args: {
     userId: v.id("users"),
     connected: v.boolean(),
     accessToken: v.optional(v.string()),
+    refreshToken: v.optional(v.string()),
+    accessTokenExpiresAt: v.optional(v.number()),
+    refreshTokenExpiresAt: v.optional(v.number()),
     profileId: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, connected, accessToken, profileId }) => {
+  handler: async (ctx, { userId, connected, accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt, profileId }) => {
     const profile = await ctx.db.query("profiles").withIndex("by_user_id", (q) => q.eq("user_id", userId)).unique()
     if (!profile) return { ok: false, error: "PROFILE_NOT_FOUND" as const }
 
@@ -708,6 +1001,9 @@ export const setLinkedinConnection = mutationGeneric({
     await ctx.db.patch(profile._id, {
       linkedin_connected: connected,
       linkedin_access_token: accessToken,
+      linkedin_refresh_token: refreshToken,
+      linkedin_access_token_expires_at: accessTokenExpiresAt,
+      linkedin_refresh_token_expires_at: refreshTokenExpiresAt,
       linkedin_profile_id: profileId,
       auto_post_enabled: connected ? profile.auto_post_enabled : xStillConnected ? profile.auto_post_enabled : false,
       updated_at: Date.now(),

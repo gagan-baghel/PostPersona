@@ -19,6 +19,9 @@ export default defineSchema({
     timezone: v.optional(v.string()),
     linkedin_connected: v.boolean(),
     linkedin_access_token: v.optional(v.string()),
+    linkedin_refresh_token: v.optional(v.string()),
+    linkedin_access_token_expires_at: v.optional(v.number()),
+    linkedin_refresh_token_expires_at: v.optional(v.number()),
     linkedin_profile_id: v.optional(v.string()),
     x_connected: v.optional(v.boolean()),
     x_access_token: v.optional(v.string()),
@@ -68,12 +71,35 @@ export default defineSchema({
     posted_at: v.optional(v.number()),
     review_notes: v.optional(v.string()),
     queue_position: v.optional(v.number()),
+    campaign_id: v.optional(v.id("campaigns")),
+    publish_attempt_count: v.optional(v.number()),
+    publish_last_attempt_at: v.optional(v.number()),
+    publish_next_retry_at: v.optional(v.number()),
+    publish_last_error: v.optional(v.string()),
+    publish_lock_until: v.optional(v.number()),
+    idempotency_key: v.optional(v.string()),
+    delivery_status: v.optional(v.string()),
     created_at: v.number(),
   })
     .index("by_user_id", ["user_id"])
     .index("by_user_status", ["user_id", "workflow_status"])
     .index("by_user_status_queue", ["user_id", "workflow_status", "queue_position"])
     .index("by_user_scheduled", ["user_id", "scheduled_for"]),
+
+  campaigns: defineTable({
+    user_id: v.id("users"),
+    name: v.string(),
+    goal: v.string(),
+    audience: v.string(),
+    pillars: v.array(v.string()),
+    cadence_per_week: v.number(),
+    kpi_target: v.optional(v.string()),
+    primary_persona_id: v.optional(v.id("personas")),
+    status: v.optional(v.string()),
+    created_at: v.number(),
+    updated_at: v.number(),
+  })
+    .index("by_user_id", ["user_id"]),
 
   transactions: defineTable({
     user_id: v.id("users"),

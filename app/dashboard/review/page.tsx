@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type MouseEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -28,8 +28,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { PageHeader } from "@/components/dashboard/page-header"
 import { toast } from "sonner"
-import { CalendarClock, CheckCircle2, Clock3, GripVertical, Sparkles, Trash2, XCircle } from "lucide-react"
+import { CalendarClock, CheckCircle2, Clock3, GripVertical, RefreshCw, Sparkles, Trash2, XCircle } from "lucide-react"
 
 interface ReviewPost {
   id: string
@@ -40,6 +41,9 @@ interface ReviewPost {
   queue_position?: number | null
   scheduled_for?: number | null
   review_notes?: string | null
+  publish_attempt_count?: number | null
+  publish_last_error?: string | null
+  publish_next_retry_at?: number | null
   personas: { name: string; title: string | null } | null
 }
 
@@ -135,7 +139,7 @@ export default function ReviewPage() {
   const [manualScheduleById, setManualScheduleById] = useState<Record<string, string>>({})
   const [workingId, setWorkingId] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [pendingAction, setPendingAction] = useState<{ id: string; action: "approve" | "reject" | "reschedule" | "delete" } | null>(null)
+  const [pendingAction, setPendingAction] = useState<{ id: string; action: "approve" | "reject" | "reschedule" | "delete" | "replay" } | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [scheduleWeekOpen, setScheduleWeekOpen] = useState(false)
   const [isGeneratingWeek, setIsGeneratingWeek] = useState(false)
@@ -162,56 +166,50 @@ export default function ReviewPage() {
         }),
     [posts],
   )
+  const deadLetterPosts = useMemo(() => posts.filter((p) => p.workflow_status === "dead_letter"), [posts])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setIsLoading(true)
     try {
-      const response = await fetch("/api/posts/review")
-      const data = await response.json().catch(() => [])
-      if (!response.ok) throw new Error(data.error || "Failed to load review posts")
-      setPosts(data)
+      const [reviewResponse, personasResponse, userResponse] = await Promise.all([
+        fetch("/api/posts/review"),
+        fetch("/api/personas"),
+        fetch("/api/user"),
+      ])
+
+      const [reviewData, personasData, userData] = await Promise.all([
+        reviewResponse.json().catch(() => []),
+        personasResponse.json().catch(() => []),
+        userResponse.json().catch(() => ({})),
+      ])
+
+      if (!reviewResponse.ok) throw new Error(reviewData.error || "Failed to load review posts")
+      if (!personasResponse.ok) throw new Error(personasData.error || "Failed to load personas")
+      if (!userResponse.ok) throw new Error(userData.error || "Failed to load account status")
+
+      setPosts(Array.isArray(reviewData) ? reviewData : [])
+
+      const options = Array.isArray(personasData)
+        ? personasData.map((p: any) => ({ id: String(p.id), name: String(p.name || "Untitled Persona") }))
+        : []
+      setPersonas(options)
+      setWeekPersonaId((prev) => prev || options[0]?.id || "")
+
+      setConnections({
+        linkedin_connected: Boolean(userData.linkedin_connected),
+        x_connected: Boolean(userData.x_connected),
+        auto_post_enabled: Boolean(userData.auto_post_enabled),
+      })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load")
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const loadPersonas = async () => {
-    try {
-      const response = await fetch("/api/personas")
-      const data = await response.json().catch(() => [])
-      if (!response.ok) throw new Error(data.error || "Failed to load personas")
-      const options = Array.isArray(data)
-        ? data.map((p: any) => ({ id: String(p.id), name: String(p.name || "Untitled Persona") }))
-        : []
-      setPersonas(options)
-      setWeekPersonaId((prev) => prev || options[0]?.id || "")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load personas")
-    }
-  }
-
-  const loadConnections = async () => {
-    try {
-      const response = await fetch("/api/user")
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || "Failed to load account status")
-      setConnections({
-        linkedin_connected: Boolean(data.linkedin_connected),
-        x_connected: Boolean(data.x_connected),
-        auto_post_enabled: Boolean(data.auto_post_enabled),
-      })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load account status")
-    }
-  }
+  }, [])
 
   useEffect(() => {
-    load()
-    loadPersonas()
-    loadConnections()
-  }, [])
+    void load()
+  }, [load])
 
   useEffect(() => {
     if (searchParams.get("scheduleWeek") === "1") {
@@ -292,7 +290,7 @@ export default function ReviewPage() {
     }
   }
 
-  const reviewAction = async (id: string, action: "approve" | "reject" | "reschedule" | "delete") => {
+  const reviewAction = async (id: string, action: "approve" | "reject" | "reschedule" | "delete" | "replay") => {
     setWorkingId(id)
     try {
       if (action === "delete") {
@@ -300,6 +298,19 @@ export default function ReviewPage() {
         const data = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(data.error || "Delete failed")
         toast.success("Post deleted from schedule")
+        await load()
+        return
+      }
+
+      if (action === "replay") {
+        const response = await fetch(`/api/posts/${id}/review`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "replay" }),
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.error || "Replay failed")
+        toast.success("Moved back to scheduled queue")
         await load()
         return
       }
@@ -333,7 +344,7 @@ export default function ReviewPage() {
     }
   }
 
-  const askConfirmation = (id: string, action: "approve" | "reject" | "reschedule" | "delete") => {
+  const askConfirmation = (id: string, action: "approve" | "reject" | "reschedule" | "delete" | "replay") => {
     setPendingAction({ id, action })
     setConfirmOpen(true)
   }
@@ -421,17 +432,24 @@ export default function ReviewPage() {
 
   return (
     <div className="space-y-3 p-1 sm:p-2 md:p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">Review Queue</h1>
-          <Badge variant="secondary">Pending: {reviewPosts.length}</Badge>
-          <Badge variant="secondary">Scheduled: {scheduledPosts.length}</Badge>
-        </div>
-        <Button onClick={() => setScheduleWeekOpen(true)} disabled={personas.length === 0}>
-          <Sparkles className="mr-2 h-4 w-4" />
-          Schedule Week
-        </Button>
-      </div>
+      <PageHeader
+        title="Review Queue"
+        description="Approve pending drafts and prioritize scheduled posts."
+        badgeText={`Pending: ${reviewPosts.length}`}
+        rightSlot={
+          <>
+            <Badge variant="secondary">Scheduled: {scheduledPosts.length}</Badge>
+            <Button variant="outline" className="bg-transparent" onClick={() => void load()} disabled={isLoading}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+            <Button onClick={() => setScheduleWeekOpen(true)} disabled={personas.length === 0}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Schedule Week
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid gap-3 xl:grid-cols-2">
         <section className="space-y-4">
@@ -642,6 +660,37 @@ export default function ReviewPage() {
         </section>
       </div>
 
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Delivery Failures (Dead Letter)</h2>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : deadLetterPosts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No failed deliveries.</p>
+        ) : (
+          deadLetterPosts.map((post) => (
+            <Card key={post.id}>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{post.topic}</p>
+                    <p className="text-xs text-muted-foreground">{post.personas?.name || "Persona"}</p>
+                  </div>
+                  <Badge variant="destructive">Dead Letter</Badge>
+                </div>
+                <p className="line-clamp-3 text-sm text-muted-foreground">{post.content}</p>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Badge variant="secondary">Attempts: {post.publish_attempt_count || 0}</Badge>
+                  {post.publish_last_error ? <Badge variant="outline" className="max-w-full truncate">Error: {post.publish_last_error}</Badge> : null}
+                </div>
+                <Button onClick={() => askConfirmation(post.id, "replay")} disabled={workingId === post.id}>
+                  Replay to Scheduled Queue
+                </Button>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </section>
+
       <Dialog open={scheduleWeekOpen} onOpenChange={setScheduleWeekOpen}>
         <DialogContent>
           <DialogHeader>
@@ -698,7 +747,7 @@ export default function ReviewPage() {
       </Dialog>
 
       <Dialog open={Boolean(previewPost)} onOpenChange={(open) => !open && setPreviewPost(null)}>
-        <DialogContent className="flex w-[95vw] max-w-2xl max-h-[85vh] flex-col overflow-hidden p-0">
+        <DialogContent className="flex h-[min(90dvh,760px)] w-[95vw] max-w-2xl flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6">
             <DialogTitle>{previewPost?.topic || "Post Preview"}</DialogTitle>
             <DialogDescription className="flex items-center gap-2">
@@ -725,7 +774,7 @@ export default function ReviewPage() {
               </div>
             </div>
           )}
-          <DialogFooter className="shrink-0 border-t px-6 py-4">
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
             <Button
               variant="outline"
               onClick={async () => {
@@ -754,6 +803,7 @@ export default function ReviewPage() {
               {pendingAction?.action === "reject" && "Reject this post? It will not be posted."}
               {pendingAction?.action === "reschedule" && "Apply this new schedule time for the post?"}
               {pendingAction?.action === "delete" && "Delete this scheduled post permanently?"}
+              {pendingAction?.action === "replay" && "Replay this failed post back to the scheduled queue?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

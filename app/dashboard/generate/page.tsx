@@ -6,6 +6,10 @@ import { useAuth } from "@/hooks/use-auth"
 import { PersonaGridSkeleton } from "@/components/skeletons/persona-grid-skeleton"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { EmptyState } from "@/components/dashboard/empty-state"
+import { PageHeader } from "@/components/dashboard/page-header"
+import { Sparkles } from "lucide-react"
 
 export default function GeneratePage() {
   const { user } = useAuth()
@@ -13,13 +17,9 @@ export default function GeneratePage() {
 
   if (isLoading) {
     return (
-      <div className="p-2 sm:p-3 md:p-4">
-        <div>
-          <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Generate Post</h1>
-          </div>
-          <PersonaGridSkeleton />
-        </div>
+      <div className="space-y-3 p-2 sm:p-3 md:p-4">
+        <PageHeader title="Studio" description="Create one post quickly, then route it to schedule." />
+        <PersonaGridSkeleton />
       </div>
     )
   }
@@ -28,52 +28,36 @@ export default function GeneratePage() {
 
   if (!userPersonas.length) {
     return (
-      <div className="p-2 sm:p-3 md:p-4">
-        <div>
-          <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Generate Post</h1>
-          </div>
-
-          <div className="rounded-lg border bg-card p-6 sm:p-10 text-center">
-            <div className="mx-auto flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10">
-              <svg
-                className="h-8 w-8 text-primary"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-            </div>
-            <h2 className="mt-6 text-xl font-semibold">No AI Personas Yet</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Create your first AI persona to start generating personalized social posts.
-            </p>
-            <Button asChild className="mt-6">
-              <Link href="/dashboard/personas">Create Persona</Link>
-            </Button>
-          </div>
-        </div>
+      <div className="space-y-3 p-2 sm:p-3 md:p-4">
+        <PageHeader title="Studio" description="Create one post quickly, then route it to schedule." />
+        <EmptyState
+          title="No Personas Yet"
+          description="Create your first persona to unlock post generation."
+          icon={<Sparkles className="h-5 w-5 text-primary" />}
+          actionLabel="Create Persona"
+          actionHref="/dashboard/personas"
+        />
       </div>
     )
   }
 
   return (
-    <div className="p-2 sm:p-3 md:p-4">
-      <div>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Generate Post</h1>
+    <div className="space-y-3 p-2 sm:p-3 md:p-4">
+      <PageHeader
+        title="Studio"
+        description="Step 1/3: Generate draft. Step 2/3: Review. Step 3/3: Auto-publish."
+        rightSlot={
           <Button asChild variant="outline" className="bg-transparent">
             <Link href="/dashboard/review?scheduleWeek=1">Schedule Week</Link>
           </Button>
-        </div>
-        <PostGenerator avatars={userPersonas} selectedAvatar={null} />
+        }
+      />
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant="secondary">1. Generate</Badge>
+        <Badge variant="outline">2. Review</Badge>
+        <Badge variant="outline">3. Publish</Badge>
       </div>
+      <PostGenerator avatars={userPersonas} selectedAvatar={null} />
     </div>
   )
 }

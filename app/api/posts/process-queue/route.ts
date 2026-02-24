@@ -2,47 +2,9 @@ import { NextResponse } from "next/server"
 
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { LinkedInPublishError, publishToLinkedIn } from "@/lib/social/linkedin-publish"
+import { ensureLinkedInAccessToken } from "@/lib/social/linkedin-token"
 import { X_POST_CHAR_LIMIT, countXCharacters } from "@/lib/social/platform-limits"
-
-async function postToLinkedIn(profile: any, content: string, imageUrl?: string | null) {
-  if (!profile?.linkedin_connected || !profile?.linkedin_access_token || !profile?.linkedin_profile_id) {
-    return { ok: false as const, reason: "linkedin_not_connected" }
-  }
-
-  const author = `urn:li:person:${profile.linkedin_profile_id}`
-  const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${profile.linkedin_access_token}`,
-      "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0",
-    },
-    body: JSON.stringify({
-      author,
-      lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: { text: content },
-          shareMediaCategory: imageUrl ? "IMAGE" : "NONE",
-          media: imageUrl
-            ? [
-                {
-                  status: "READY",
-                  originalUrl: imageUrl,
-                },
-              ]
-            : undefined,
-        },
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-      },
-    }),
-  })
-
-  if (!response.ok) return { ok: false as const, reason: "linkedin_failed" }
-  return { ok: true as const, postId: response.headers.get("x-restli-id") || `li_${Date.now()}` }
-}
 
 async function postToX(profile: any, content: string) {
   if (!profile?.x_connected || !profile?.x_access_token) {
@@ -67,6 +29,15 @@ async function postToX(profile: any, content: string) {
   return { ok: true as const, postId: data?.data?.id || `x_${Date.now()}` }
 }
 
+function sortQueue(posts: any[]) {
+  return [...posts].sort((a, b) => {
+    const aq = typeof a.queue_position === "number" ? a.queue_position : Number.MAX_SAFE_INTEGER
+    const bq = typeof b.queue_position === "number" ? b.queue_position : Number.MAX_SAFE_INTEGER
+    if (aq !== bq) return aq - bq
+    return (a.scheduled_for ?? 0) - (b.scheduled_for ?? 0)
+  })
+}
+
 export async function POST(request: Request) {
   try {
     const userId = getSessionUserIdFromRequest(request)
@@ -82,81 +53,106 @@ export async function POST(request: Request) {
     }
 
     const now = Date.now()
-    const nextInQueue = (scheduled ?? []).sort((a, b) => {
-      const aq = typeof a.queue_position === "number" ? a.queue_position : Number.MAX_SAFE_INTEGER
-      const bq = typeof b.queue_position === "number" ? b.queue_position : Number.MAX_SAFE_INTEGER
-      if (aq !== bq) return aq - bq
-      return (a.scheduled_for ?? 0) - (b.scheduled_for ?? 0)
-    })[0]
+    const next = sortQueue(scheduled ?? []).find((post) => {
+      const dueTime = typeof post.scheduled_for === "number" ? post.scheduled_for <= now : true
+      const retryDue = typeof post.publish_next_retry_at === "number" ? post.publish_next_retry_at <= now : true
+      return dueTime && retryDue
+    })
 
-    if (!nextInQueue) {
-      return NextResponse.json({ success: true, processed: 0 })
+    if (!next) {
+      return NextResponse.json({ success: true, processed: 0, reason: "no_due_posts" })
     }
 
-    if (typeof nextInQueue.scheduled_for === "number" && nextInQueue.scheduled_for > now) {
-      return NextResponse.json({ success: true, processed: 0 })
+    const lock = await convexMutation<any>("app:acquirePostPublishLock", {
+      userId,
+      postId: next._id,
+      lockMs: 120000,
+      idempotencyKey: `pub_${String(next._id)}_${now}`,
+    })
+    if (!lock?.ok) {
+      return NextResponse.json({ success: true, processed: 0, reason: lock?.error || "lock_failed" })
     }
 
-    const next = nextInQueue
     const target = next.target_platform || "linkedin"
-    const canLinkedin = profile?.linkedin_connected && profile?.linkedin_access_token
-    const canX = profile?.x_connected && profile?.x_access_token
-    if (target === "linkedin" && !canLinkedin) {
-      return NextResponse.json({ success: true, processed: 0, reason: "linkedin_not_connected" })
-    }
-    if (target === "x" && !canX) {
-      return NextResponse.json({ success: true, processed: 0, reason: "x_not_connected" })
-    }
-    if (target === "both" && !canLinkedin && !canX) {
-      return NextResponse.json({ success: true, processed: 0, reason: "channels_not_connected" })
-    }
     let linkedinPostId: string | undefined
     let xPostId: string | undefined
     let postedLinkedin = false
     let postedX = false
 
-    if (target === "linkedin" || target === "both") {
-      const li = await postToLinkedIn(profile, next.content, next.image_url)
-      if (!li.ok && target === "linkedin") {
-        return NextResponse.json({ success: false, error: li.reason }, { status: 400 })
-      }
-      if (li.ok) {
+    try {
+      if (target === "linkedin" || target === "both") {
+        const token = await ensureLinkedInAccessToken(userId, profile)
+        if (!token.ok || !token.accessToken || !profile?.linkedin_profile_id) {
+          throw new Error(token.warning || "linkedin_not_connected")
+        }
+
+        const li = await publishToLinkedIn({
+          accessToken: token.accessToken,
+          profileId: profile.linkedin_profile_id,
+          content: next.content,
+          imageUrl: next.image_url,
+        })
         postedLinkedin = true
         linkedinPostId = li.postId
       }
-    }
 
-    if (target === "x" || target === "both") {
-      const x = await postToX(profile, next.content)
-      if (!x.ok && target === "x") {
-        return NextResponse.json({ success: false, error: x.reason }, { status: 400 })
+      if (target === "x" || target === "both") {
+        const x = await postToX(profile, next.content)
+        if (!x.ok && target === "x") {
+          throw new Error(x.reason)
+        }
+        if (x.ok) {
+          postedX = true
+          xPostId = x.postId
+        }
       }
-      if (x.ok) {
-        postedX = true
-        xPostId = x.postId
+
+      if (!postedLinkedin && !postedX) {
+        throw new Error("no_connected_targets")
       }
+
+      const result = await convexMutation<any>("app:markScheduledPostPublished", {
+        userId,
+        postId: next._id,
+        linkedinPostId,
+        xPostId,
+        postedLinkedin,
+        postedX,
+      })
+
+      if (!result?.ok) {
+        throw new Error("failed_to_mark_published")
+      }
+
+      return NextResponse.json({ success: true, processed: 1, postId: next._id })
+    } catch (error) {
+      const message =
+        error instanceof LinkedInPublishError
+          ? `${error.message}${error.details ? `: ${error.details}` : ""}`
+          : error instanceof Error
+            ? error.message
+            : "publish_failed"
+
+      const failure = await convexMutation<any>("app:markPostPublishFailure", {
+        userId,
+        postId: next._id,
+        errorMessage: message,
+        maxAttempts: 6,
+        baseDelaySeconds: 90,
+      })
+
+      return NextResponse.json({
+        success: false,
+        processed: 0,
+        failedPostId: next._id,
+        reason: "publish_failed",
+        deadLetter: Boolean(failure?.deadLetter),
+        nextRetryAt: failure?.nextRetryAt ?? null,
+      })
     }
-
-    if (!postedLinkedin && !postedX) {
-      return NextResponse.json({ success: false, error: "no_connected_targets" }, { status: 400 })
-    }
-
-    const result = await convexMutation<any>("app:markScheduledPostPublished", {
-      userId,
-      postId: next._id,
-      linkedinPostId,
-      xPostId,
-      postedLinkedin,
-      postedX,
-    })
-
-    if (!result?.ok) {
-      return NextResponse.json({ success: false, error: "failed_to_mark_published" }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, processed: 1, postId: next._id })
   } catch (error) {
     console.error("[Process Queue] Error:", error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
+

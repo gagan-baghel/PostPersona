@@ -65,6 +65,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ success: true, targetPlatform })
     }
 
+    if (action === "replay") {
+      const result = await convexMutation<any>("app:replayDeadLetterPost", { userId, postId: id })
+      if (!result?.ok) return NextResponse.json({ error: "Failed to replay post" }, { status: 400 })
+      return NextResponse.json({ success: true, status: "scheduled", scheduledFor: result.scheduledFor ?? null })
+    }
+
     return NextResponse.json({ error: "Unsupported action" }, { status: 400 })
   } catch (error) {
     console.error("[Posts Review PATCH] Error:", error)

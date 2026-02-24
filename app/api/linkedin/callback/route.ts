@@ -62,10 +62,22 @@ export async function GET(request: Request) {
       throw new Error("Failed to exchange code for token")
     }
 
-    const { access_token } = await tokenResponse.json()
+    const tokenData = await tokenResponse.json()
+    const accessToken = typeof tokenData?.access_token === "string" ? tokenData.access_token : ""
+    const refreshToken = typeof tokenData?.refresh_token === "string" ? tokenData.refresh_token : undefined
+    const accessTokenExpiresAt =
+      typeof tokenData?.expires_in === "number" ? Date.now() + tokenData.expires_in * 1000 : undefined
+    const refreshTokenExpiresAt =
+      typeof tokenData?.refresh_token_expires_in === "number"
+        ? Date.now() + tokenData.refresh_token_expires_in * 1000
+        : undefined
+
+    if (!accessToken) {
+      throw new Error("Missing access token in callback response")
+    }
 
     const profileResponse = await fetch("https://api.linkedin.com/v2/userinfo", {
-      headers: { Authorization: `Bearer ${access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     })
 
     if (!profileResponse.ok) {
@@ -77,7 +89,10 @@ export async function GET(request: Request) {
     const result = await convexMutation<any>("app:setLinkedinConnection", {
       userId,
       connected: true,
-      accessToken: access_token,
+      accessToken,
+      refreshToken,
+      accessTokenExpiresAt,
+      refreshTokenExpiresAt,
       profileId: profile.sub,
     })
 

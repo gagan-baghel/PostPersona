@@ -34,7 +34,8 @@ export async function POST(request: Request) {
       }),
       "utf8",
     ).toString("base64url")
-    const scope = "openid profile email w_member_social"
+    const includeOffline = process.env.LINKEDIN_REQUEST_OFFLINE_ACCESS === "true"
+    const scope = includeOffline ? "openid profile email w_member_social offline_access" : "openid profile email w_member_social"
 
     const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${statePayload}&scope=${encodeURIComponent(scope)}`
 

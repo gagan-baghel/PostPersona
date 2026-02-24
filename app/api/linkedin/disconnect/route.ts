@@ -14,6 +14,9 @@ export async function POST(request: Request) {
       userId,
       connected: false,
       accessToken: undefined,
+      refreshToken: undefined,
+      accessTokenExpiresAt: undefined,
+      refreshTokenExpiresAt: undefined,
       profileId: undefined,
     })
 

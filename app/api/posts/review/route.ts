@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const userId = getSessionUserIdFromRequest(request)
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const statuses = ["review", "scheduled", "rejected"]
+    const statuses = ["review", "scheduled", "rejected", "dead_letter"]
     const posts = await convexQuery<any[]>("app:listPostsByStatus", { userId, statuses })
 
     const enriched = await Promise.all(

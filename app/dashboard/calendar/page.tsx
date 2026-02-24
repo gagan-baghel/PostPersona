@@ -7,6 +7,7 @@ import "react-day-picker/style.css"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PageHeader } from "@/components/dashboard/page-header"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 type CalendarPost = {
@@ -104,6 +105,7 @@ export default function CalendarPage() {
 
   const selectedKey = toDateKeyLocal(selectedDate)
   const selectedEntries = useMemo(() => postsByDay.get(selectedKey) ?? [], [postsByDay, selectedKey])
+  const scheduledOrPostedCount = posts.length
 
   const CalendarDayButton = useCallback((props: DayButtonProps) => {
     const key = toDateKeyLocal(props.day.date)
@@ -126,6 +128,11 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-3 p-1 sm:p-2 md:p-3">
+      <PageHeader
+        title="Calendar"
+        description="Only scheduled and posted items are shown."
+        rightSlot={<Badge variant="secondary">Items: {scheduledOrPostedCount}</Badge>}
+      />
       <div className="grid gap-3 xl:grid-cols-4">
         <Card className="xl:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -136,6 +143,7 @@ export default function CalendarPage() {
                 variant="outline"
                 className="h-8 w-8 bg-transparent"
                 onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                aria-label="Previous month"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -144,6 +152,7 @@ export default function CalendarPage() {
                 variant="outline"
                 className="h-8 w-8 bg-transparent"
                 onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                aria-label="Next month"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

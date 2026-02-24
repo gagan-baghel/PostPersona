@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { getLinkedInTokenHealth } from "@/lib/social/linkedin-token"
 
 export async function GET(request: Request) {
   try {
@@ -19,6 +20,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
+    const tokenHealth = getLinkedInTokenHealth(profile || {})
+
     return NextResponse.json({
       id: user._id,
       email: user.email,
@@ -30,6 +33,10 @@ export async function GET(request: Request) {
       auto_post_enabled: profile?.auto_post_enabled ?? false,
       timezone: profile?.timezone ?? "UTC",
       linkedin_connected: profile?.linkedin_connected ?? false,
+      linkedin_access_token_expires_at: profile?.linkedin_access_token_expires_at ?? null,
+      linkedin_refresh_token_expires_at: profile?.linkedin_refresh_token_expires_at ?? null,
+      linkedin_token_warning: tokenHealth.warning,
+      linkedin_needs_reconnect: tokenHealth.needsReconnect,
       x_connected: profile?.x_connected ?? false,
       x_username: profile?.x_username ?? null,
       created_at: user.created_at,

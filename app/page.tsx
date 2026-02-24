@@ -5,6 +5,7 @@ import { getSessionUserIdFromServerCookies } from "@/lib/auth/session"
 
 export default async function HomePage() {
   const userId = await getSessionUserIdFromServerCookies()
+  const year = new Date().getFullYear()
 
   if (userId) {
     redirect("/dashboard")
@@ -14,17 +15,20 @@ export default async function HomePage() {
     <div className="flex min-h-screen flex-col">
       {/* Header */}
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto flex min-h-14 sm:h-16 items-center justify-between gap-2 px-3 sm:px-6">
+        <div className="container mx-auto flex min-h-14 items-center justify-between gap-2 px-3 sm:h-16 sm:px-6">
           <div className="flex items-center gap-2 min-w-0">
             <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary shrink-0" />
-            <span className="text-base sm:text-xl font-bold truncate">PersonaPost</span>
+            <span className="text-sm font-bold truncate sm:text-xl">PersonaPost</span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <Button asChild variant="ghost" size="sm">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            <Button asChild variant="ghost" size="sm" className="hidden min-[380px]:inline-flex">
               <Link href="/auth/login">Sign In</Link>
             </Button>
-            <Button asChild size="sm">
-              <Link href="/auth/sign-up">Get Started</Link>
+            <Button asChild size="sm" className="px-2.5 sm:px-3">
+              <Link href="/auth/sign-up">
+                <span className="sm:hidden">Start</span>
+                <span className="hidden sm:inline">Get Started</span>
+              </Link>
             </Button>
           </div>
         </div>
@@ -121,7 +125,7 @@ export default async function HomePage() {
       {/* Footer */}
       <footer className="border-t border-border bg-card">
         <div className="container mx-auto px-6 py-8">
-          <div className="text-center text-sm text-muted-foreground">© 2025 PersonaPost. All rights reserved.</div>
+          <div className="text-center text-sm text-muted-foreground">© {year} PersonaPost. All rights reserved.</div>
         </div>
       </footer>
     </div>

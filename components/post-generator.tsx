@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -12,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { useCoins } from "@/hooks/use-coins"
 import { toast } from "sonner"
 import { handleDownloadImage } from "@/utils/download-image"
-import { BarChart2, Heart, ImagePlus, Loader2, MessageCircle, Repeat2, Save, Send, Wand2 } from "lucide-react"
+import { BarChart2, CheckCircle2, Copy, Heart, ImagePlus, Loader2, MessageCircle, Repeat2, Save, Send, Wand2 } from "lucide-react"
 import { X_POST_CHAR_LIMIT, countXCharacters, needsXLimit } from "@/lib/social/platform-limits"
 
 interface Persona {
@@ -60,7 +61,14 @@ function LinkedInPreview({
 
       {imageUrl ? (
         <div className="mt-3 overflow-hidden rounded-lg border">
-          <img src={imageUrl} alt="Preview" className="h-auto w-full object-cover" />
+          <img
+            src={imageUrl}
+            alt="Generated post visual"
+            width={1200}
+            height={675}
+            loading="lazy"
+            className="h-auto w-full object-cover"
+          />
         </div>
       ) : null}
 
@@ -101,7 +109,14 @@ function XPreview({
 
       {imageUrl ? (
         <div className="mt-3 overflow-hidden rounded-2xl border">
-          <img src={imageUrl} alt="Preview" className="h-auto w-full object-cover" />
+          <img
+            src={imageUrl}
+            alt="Generated post visual"
+            width={1200}
+            height={675}
+            loading="lazy"
+            className="h-auto w-full object-cover"
+          />
         </div>
       ) : null}
 
@@ -276,9 +291,15 @@ export function PostGenerator({
       <Card>
         <CardHeader className="p-4 pb-0 sm:p-6 sm:pb-0">
           <CardTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" />Create Post</CardTitle>
-          <CardDescription>Generate one post and add it directly to schedule queue.</CardDescription>
+          <CardDescription>Single-post workflow: generate, optionally add image, then schedule.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0 sm:p-6 sm:pt-0">
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="secondary">1. Generate</Badge>
+            <Badge variant="outline">2. Optional Image</Badge>
+            <Badge variant="outline">3. Add to Queue</Badge>
+          </div>
+
           <div className="space-y-2">
             <Label>Persona</Label>
             <Select value={personaId} onValueChange={setPersonaId}>
@@ -306,6 +327,11 @@ export function PostGenerator({
                 <SelectItem value="both">LinkedIn + X</SelectItem>
               </SelectContent>
             </Select>
+            {targetPlatform !== "linkedin" ? (
+              <p className="text-xs text-muted-foreground">
+                X-safe generation is enforced ({X_POST_CHAR_LIMIT} chars max).
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -366,6 +392,10 @@ export function PostGenerator({
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Generate a draft to preview it here.</div>
           ) : (
             <>
+              <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <p className="text-xs text-muted-foreground">Draft ready. Review preview, then add to queue.</p>
+              </div>
               {(targetPlatform === "linkedin" || targetPlatform === "both") && (
                 <LinkedInPreview persona={selectedPersona} content={generatedPost} imageUrl={generatedImageUrl} />
               )}
@@ -378,6 +408,22 @@ export function PostGenerator({
                   {isXTooLong ? " (too long for X)" : ""}
                 </p>
               )}
+              <Button
+                variant="outline"
+                className="w-full bg-transparent"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(generatedPost)
+                    toast.success("Draft copied")
+                  } catch {
+                    toast.error("Failed to copy draft")
+                  }
+                }}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy draft
+              </Button>
               {generatedImageUrl && (
                 <Button variant="outline" className="w-full bg-transparent" size="sm" onClick={() => handleDownloadImage(generatedImageUrl, `personapost-${Date.now()}.png`)}>
                   Download image

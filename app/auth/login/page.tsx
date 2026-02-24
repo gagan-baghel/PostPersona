@@ -56,8 +56,11 @@ export default function LoginPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="you@example.com…"
+                autoComplete="email"
+                spellCheck={false}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -69,7 +72,9 @@ export default function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -77,7 +82,11 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+            {error && (
+              <div aria-live="polite" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign in"}

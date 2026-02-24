@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { LinkedInPublishError, publishToLinkedIn } from "@/lib/social/linkedin-publish"
+import { ensureLinkedInAccessToken } from "@/lib/social/linkedin-token"
 
 export async function POST(request: Request) {
   try {
@@ -32,48 +34,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "LinkedIn account not connected" }, { status: 400 })
     }
 
-    const author = `urn:li:person:${profile.linkedin_profile_id}`
-    const shareResponse = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${profile.linkedin_access_token}`,
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-      },
-      body: JSON.stringify({
-        author,
-        lifecycleState: "PUBLISHED",
-        specificContent: {
-          "com.linkedin.ugc.ShareContent": {
-            shareCommentary: {
-              text: content,
-            },
-            shareMediaCategory: imageUrl ? "IMAGE" : "NONE",
-            media: imageUrl
-              ? [
-                  {
-                    status: "READY",
-                    originalUrl: imageUrl,
-                  },
-                ]
-              : undefined,
-          },
-        },
-        visibility: {
-          "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-        },
-      }),
-    })
-
-    if (!shareResponse.ok) {
-      const detail = await shareResponse.text()
+    const token = await ensureLinkedInAccessToken(userId, profile)
+    if (!token.ok || !token.accessToken) {
       return NextResponse.json(
-        { error: "LinkedIn publish failed", details: detail.slice(0, 300) },
-        { status: shareResponse.status },
+        { error: token.warning || "LinkedIn token is unavailable. Reconnect LinkedIn." },
+        { status: 400 },
       )
     }
 
-    const linkedinPostId = shareResponse.headers.get("x-restli-id") || `li_${Date.now()}`
+    const linkedin = await publishToLinkedIn({
+      accessToken: token.accessToken,
+      profileId: profile.linkedin_profile_id,
+      content,
+      imageUrl: imageUrl || undefined,
+    })
+    const linkedinPostId = linkedin.postId
 
     const post = await convexMutation<any>("app:createPost", {
       userId,
@@ -101,6 +76,12 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error("[Post to LinkedIn] Error:", error)
+    if (error instanceof LinkedInPublishError) {
+      return NextResponse.json(
+        { error: error.message, details: error.details },
+        { status: error.status || 400 },
+      )
+    }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

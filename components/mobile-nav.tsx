@@ -17,13 +17,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
-import { CalendarDays, CheckSquare, Home, LogOut, PenSquare, Settings, Sparkles } from "lucide-react"
+import { BarChart3, CalendarDays, CheckSquare, Home, LogOut, PenSquare, Search, Settings, Sparkles, Target } from "lucide-react"
 
 const navItems = [
   { title: "Overview", href: "/dashboard", icon: Home },
   { title: "Studio", href: "/dashboard/generate", icon: PenSquare },
   { title: "Review Queue", href: "/dashboard/review", icon: CheckSquare },
   { title: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
+  { title: "Campaigns", href: "/dashboard/campaigns", icon: Target },
+  { title: "Profile Analysis", href: "/dashboard/profile-analysis", icon: Search },
+  { title: "Advanced Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { title: "Personas", href: "/dashboard/personas", icon: Sparkles },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
 ]

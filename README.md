@@ -1,208 +1,124 @@
-# PersonaPost (Convex + Next.js)
+# PersonaPost (Next.js + Convex)
 
-PersonaPost is an AI-assisted social writing workspace for individuals and teams who want a clean, approval-first workflow for LinkedIn and X.
+PersonaPost is a LinkedIn/X content automation workspace with approval-first publishing, queue orchestration, campaign planning, and reliability controls.
 
-The app is optimized around one simple loop:
-1. Generate drafts in Studio
-2. Review/approve in Queue
-3. Publish in queue order and monitor in Calendar
+## What It Does
 
----
+- Studio: generate one post with persona guidance and optional image generation.
+- Review Queue: approve/reject drafts, drag-reorder scheduled queue, reschedule, and delete.
+- Week Scheduler: generate 7 drafts into pending review (never auto-approved).
+- Calendar: shows only `scheduled` and `posted` items.
+- Auto Publisher: posts top scheduled item first (queue order), with retry/backoff and dead-letter protection.
+- Campaigns: define goal/audience/pillars/cadence and generate weekly campaign content.
+- Profile Analysis: connected-account LinkedIn post analytics with trend + scatter charts.
+- Advanced Analytics: delivery reliability and throughput metrics.
 
-## Product Direction (Current)
+## Core Rules Enforced
 
-### Core Principles
-- Approval-first: nothing is posted without explicit user approval.
-- Queue-first publishing: top item in scheduled queue posts first.
-- Clarity over complexity: fewer nav items, fewer competing flows.
-- Persona-driven writing: every output is grounded in persona style and training examples.
+- No post is published unless approved by user.
+- Pending review items are excluded from calendar.
+- Scheduled queue determines publish priority.
+- If required channels are disconnected, scheduling/publishing UI warns and blocks invalid actions.
+- Single-post Studio flow schedules directly (does not return to review).
 
-### Simplified Information Architecture
-- `/dashboard` -> **Overview** (actionable control room)
-- `/dashboard/generate` -> **Studio** (single-post generation)
-- `/dashboard/review` -> **Review Queue** (approve/reject/reschedule + weekly batch generation)
-- `/dashboard/calendar` -> **Calendar** (month view of scheduled/posted content)
-- `/dashboard/personas` -> **Personas**
-- `/dashboard/settings` -> **Settings**
-
-Secondary pages like history/coins remain accessible but are no longer primary nav destinations.
-
----
-
-## Feature Set
-
-### 1) Studio (Single Post)
-- Generate one post at a time using selected persona + topic.
-- Optional explicit image generation (off by default).
-- Save draft or send directly to review queue.
-
-### 2) Review Queue
-- Two-column layout:
-  - Left: **Pending Review**
-  - Right: **Scheduled Queue**
-- Approve from pending -> moves into scheduled queue.
-- Reject from pending -> blocked from posting.
-- Drag-and-drop scheduled posts to reorder priority.
-- Reschedule any queued post manually.
-- Platform badge shown clearly on each card (`LinkedIn`, `X`, `LinkedIn + X`).
-
-### 3) Schedule Week (Batch Workflow)
-- Button in Review Queue: **Schedule Week**.
-- Prompts for:
-  - Persona (required)
-  - Topic (optional)
-  - Target platform
-- Generates exactly 7 posts and inserts them into **Pending Review**.
-- If topic is blank, generation uses persona-relevant trend themes.
-
-### 4) Calendar
-- Dedicated dashboard calendar page using `react-day-picker`.
-- Large month grid with per-day content markers.
-- Selected-day detail panel for scheduled/posted entries.
-
-### 5) Queue Processor
-- Background trigger on dashboard load calls `/api/posts/process-queue`.
-- Posts only the top scheduled item when due.
-- Moves published post to history state and resequences queue.
-
----
-
-## Tech Stack
+## Stack
 
 - Next.js 16 (App Router)
 - React 19 + TypeScript
 - Convex (data + backend functions)
-- SWR (data fetching)
-- Grok/Groq-compatible API (`GROK_API_KEY`) using `llama-3.1-8b-instant` (with automatic fallback)
-- Gemini (`GEMINI_API_KEY`) for optional image generation
+- SWR
+- Groq-compatible API via `GROK_API_KEY` (default model `llama-3.3-70b`)
+- Optional Gemini image generation
+- LinkedIn + X OAuth
 - Cloudinary (media)
-- Razorpay (credits)
-
----
-
-## Environment Variables
-
-Create `.env.local`:
-
-```bash
-# Convex
-NEXT_PUBLIC_CONVEX_URL=https://<your-deployment>.convex.cloud
-CONVEX_DEPLOYMENT=<deployment-name>
-CONVEX_ADMIN_KEY=<admin-key>
-
-# App/Auth
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-SESSION_SECRET=<long-random-string>
-
-# AI
-GROK_API_KEY=<grok-api-key>
-GEMINI_API_KEY=<optional-for-image-generation>
-
-# Payments
-RAZORPAY_KEY_ID=<key>
-RAZORPAY_KEY_SECRET=<secret>
-
-# Cloudinary (optional unless using generated/uploaded media)
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=<cloud>
-CLOUDINARY_API_KEY=<key>
-CLOUDINARY_API_SECRET=<secret>
-
-# LinkedIn OAuth
-LINKEDIN_CLIENT_ID=<id>
-LINKEDIN_CLIENT_SECRET=<secret>
-
-# X OAuth
-X_CLIENT_ID=<id>
-X_CLIENT_SECRET=<secret>
-```
-
----
+- Razorpay (coins)
 
 ## Local Setup
 
+1. Install deps:
+
 ```bash
 npm install
-npm run dev
 ```
 
-`npm run dev` starts both:
-- Next.js frontend
-- Convex dev server
-
-If Convex isn’t initialized yet:
+2. Initialize Convex (first time only):
 
 ```bash
 npx convex dev
 ```
 
----
+3. Run app + Convex together:
 
-## Important APIs
+```bash
+npm run dev
+```
 
-### Generation
-- `POST /api/generate-post`
-- `POST /api/generate-image`
-- `POST /api/posts/review/schedule-week`
+## Environment
 
-### Review + Queue
-- `GET /api/posts/review`
-- `PATCH /api/posts/[id]/review`
-- `POST /api/posts/review/reorder`
-- `POST /api/posts/process-queue`
+Create `.env.local` from `.env.example`.
 
-### Posts
-- `GET /api/posts`
-- `POST /api/save-post`
-- `DELETE /api/posts/[id]`
+### Required for auth in production
 
----
+- `SESSION_SECRET` must be set in production.
+- Missing `SESSION_SECRET` in production will break login/signup session creation.
 
-## Data Model (Convex)
+### Convex
 
-Primary tables:
-- `users`
-- `profiles`
-- `personas`
-- `posts`
-- `transactions`
+- `CONVEX_DEPLOYMENT`
+- `NEXT_PUBLIC_CONVEX_URL`
+- `NEXT_PUBLIC_CONVEX_SITE_URL`
+- `CONVEX_ADMIN_KEY` (server-side admin calls)
 
-Queue-specific post fields:
-- `workflow_status` (`review`, `scheduled`, `posted`, `rejected`, ...)
-- `target_platform` (`linkedin`, `x`, `both`)
-- `scheduled_for`
-- `queue_position`
+### AI
 
----
+- `GROK_API_KEY` (required for post generation)
+- `GROK_MODEL` (optional override, defaults to `llama-3.3-70b`)
+- `GEMINI_API_KEY` (optional image generation)
+- `DEAPI_API_KEY` (optional image generation provider)
 
-## UX Audit Summary
+### Social OAuth
 
-### Problems identified
-- Too many top-level navigation options causing cognitive load.
-- Mixed generation/review responsibilities spread across pages.
-- Dashboard prioritized charts over actions.
-- Platform targeting visibility was easy to miss.
+- LinkedIn: `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`
+- Optional refresh-token scope request: `LINKEDIN_REQUEST_OFFLINE_ACCESS=true`
+- X: `X_CLIENT_ID`, `X_CLIENT_SECRET`
 
-### Changes made
-- Simplified nav to core workflow pages.
-- Rebuilt dashboard as an action-first control room.
-- Added explicit weekly batch generation flow in Review Queue.
-- Enforced visible platform badges in review/schedule cards.
-- Replaced custom calendar layout with library-backed calendar UI.
-- Removed unused analytics hook and API route.
+### Optional integrations
 
-### Remaining opportunities (next iteration)
-- Add role-based workspaces for teams.
-- Add template packs by domain (founder, recruiter, creator, etc.).
-- Add content performance feedback loop (import engagement metrics).
+- Razorpay keys
+- Cloudinary keys
 
----
+## Reliability Features
 
-## Quality Gates
+- Publish lock (`publish_lock_until`) to avoid duplicate concurrent posting.
+- Idempotency key tracking per publish attempt.
+- Exponential retry/backoff via `publish_next_retry_at`.
+- Dead-letter transition after max attempts.
+- Replay dead-letter items back to scheduled queue.
+
+## Campaign Features
+
+- Campaign table with `goal`, `audience`, `pillars`, `cadence_per_week`, `kpi_target`.
+- Weekly campaign generator inserts 7 posts into review queue and links `campaign_id`.
+- Campaign-level status counters (review/scheduled/posted/dead-letter).
+
+## Production Checklist
+
+Before deploy:
 
 ```bash
 npm run lint
-npx tsc --noEmit
 npm run build
 ```
 
-Run these before every deploy.
+Production env must include at minimum:
+
+- `SESSION_SECRET`
+- Convex deployment + URL vars
+- `CONVEX_ADMIN_KEY`
+- `GROK_API_KEY`
+- OAuth keys for channels you want to connect
+
+## Notes
+
+- LinkedIn profile analysis endpoint currently provides deep analytics for the connected account.
+- LinkedIn impression data can be estimated if API does not return impression counters for a post.

@@ -14,7 +14,8 @@ import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
 import { useProfile } from "@/hooks/use-profile"
 import { connectLinkedIn, connectX, deleteAccount, disconnectLinkedIn, disconnectX, updateProfile } from "@/lib/mutations"
-import { Linkedin, Loader2, Settings2, Trash2, UserRound, X } from "lucide-react"
+import { Linkedin, Loader2, Trash2, UserRound, X } from "lucide-react"
+import { PageHeader } from "@/components/dashboard/page-header"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -191,13 +192,11 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-3 p-1 sm:p-2 md:p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-xl sm:text-2xl font-semibold"><Settings2 className="h-5 w-5 text-primary" />Settings</h1>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">Channels: {connectionSummary}/2</Badge>
-          <Badge variant="secondary">Coins: {profile?.coins || 0}</Badge>
-        </div>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Manage account profile, channels, and automation defaults."
+        rightSlot={<Badge variant="secondary">Channels: {connectionSummary}/2</Badge>}
+      />
 
       <div className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
@@ -248,6 +247,11 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2 font-medium"><Linkedin className="h-4 w-4 text-[#0A66C2]" /> LinkedIn</div>
                 <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>{profile?.linkedin_connected ? "Connected" : "Not connected"}</Badge>
               </div>
+              {profile?.linkedin_token_warning ? (
+                <p className={`mb-3 text-xs ${profile.linkedin_needs_reconnect ? "text-destructive" : "text-amber-300"}`}>
+                  {profile.linkedin_token_warning}
+                </p>
+              ) : null}
               <Button onClick={handleLinkedIn} disabled={isLinkingLinkedIn} className="w-full">
                 {isLinkingLinkedIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {profile?.linkedin_connected ? "Disconnect LinkedIn" : "Connect LinkedIn"}
