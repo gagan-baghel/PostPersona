@@ -41,6 +41,8 @@ export default function CampaignsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [activeGenerateId, setActiveGenerateId] = useState<string | null>(null)
+  const [generationMode, setGenerationMode] = useState<"dedicated" | "random">("dedicated")
+  const [isGeneratingRandom, setIsGeneratingRandom] = useState(false)
 
   const [name, setName] = useState("")
   const [goal, setGoal] = useState("")
@@ -49,6 +51,8 @@ export default function CampaignsPage() {
   const [cadence, setCadence] = useState("5")
   const [kpi, setKpi] = useState("")
   const [personaId, setPersonaId] = useState("")
+  const [randomPersonaId, setRandomPersonaId] = useState("")
+  const [randomTopic, setRandomTopic] = useState("")
 
   const load = async () => {
     setIsLoading(true)
@@ -66,6 +70,7 @@ export default function CampaignsPage() {
         : []
       setPersonas(options)
       setPersonaId((prev) => prev || options[0]?.id || "")
+      setRandomPersonaId((prev) => prev || options[0]?.id || "")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load")
     } finally {
@@ -137,6 +142,35 @@ export default function CampaignsPage() {
     }
   }
 
+  const generateRandomWeek = async () => {
+    if (!randomPersonaId) {
+      toast.error("Select persona for random week")
+      return
+    }
+
+    setIsGeneratingRandom(true)
+    try {
+      const response = await fetch("/api/posts/review/schedule-week", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          personaId: randomPersonaId,
+          topic: randomTopic.trim() || undefined,
+          targetPlatform: "linkedin",
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || "Failed to generate random week")
+      toast.success(`Generated ${data.created || 7} random posts to review queue`)
+      setRandomTopic("")
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to generate random week")
+    } finally {
+      setIsGeneratingRandom(false)
+    }
+  }
+
   const totalCampaignPosts = useMemo(
     () => campaigns.reduce((sum, campaign) => sum + (campaign.stats?.totalPosts || 0), 0),
     [campaigns],
@@ -146,8 +180,28 @@ export default function CampaignsPage() {
     <div className="space-y-4 p-1 sm:p-2 md:p-3">
       <PageHeader
         title="Campaigns"
-        description="Define one campaign unit and generate weekly LinkedIn drafts aligned to it."
+        description="Generate weekly drafts via dedicated campaign strategy or random weekly mode."
         badgeText={`Total campaign posts: ${totalCampaignPosts}`}
+        rightSlot={
+          <div className="flex items-center rounded-md border border-border p-0.5">
+            <Button
+              size="sm"
+              variant={generationMode === "dedicated" ? "default" : "ghost"}
+              onClick={() => setGenerationMode("dedicated")}
+              className="h-7 px-2.5 text-xs"
+            >
+              Dedicated
+            </Button>
+            <Button
+              size="sm"
+              variant={generationMode === "random" ? "default" : "ghost"}
+              onClick={() => setGenerationMode("random")}
+              className="h-7 px-2.5 text-xs"
+            >
+              Random
+            </Button>
+          </div>
+        }
       />
 
       <Card>
@@ -203,6 +257,51 @@ export default function CampaignsPage() {
         </CardContent>
       </Card>
 
+      {generationMode === "random" ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Random Week
+            </CardTitle>
+            <CardDescription>Generate 7 random posts for the week into review queue.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Persona</Label>
+              <Select value={randomPersonaId} onValueChange={setRandomPersonaId}>
+                <SelectTrigger><SelectValue placeholder="Select persona" /></SelectTrigger>
+                <SelectContent>
+                  {personas.map((persona) => (
+                    <SelectItem key={persona.id} value={persona.id}>{persona.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-3">
+              <Label>Topic hint (optional)</Label>
+              <Input value={randomTopic} onChange={(e) => setRandomTopic(e.target.value)} placeholder="Optional seed topic" />
+            </div>
+            <div className="md:col-span-3">
+              <Button onClick={generateRandomWeek} disabled={isGeneratingRandom || !randomPersonaId}>
+                {isGeneratingRandom ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate Random Week
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {generationMode === "dedicated" ? (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Campaign Units</h2>
         {isLoading ? (
@@ -237,7 +336,7 @@ export default function CampaignsPage() {
                   <Badge variant="outline">Posted: {campaign.stats?.posted || 0}</Badge>
                   <Badge variant="outline">Dead Letter: {campaign.stats?.deadLetter || 0}</Badge>
                 </div>
-                <Button onClick={() => generateWeek(campaign.id)} disabled={activeGenerateId === campaign.id}>
+                <Button onClick={() => generateWeek(campaign.id)} disabled={activeGenerateId === campaign.id || generationMode !== "dedicated"}>
                   {activeGenerateId === campaign.id ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -255,6 +354,7 @@ export default function CampaignsPage() {
           ))
         )}
       </section>
+      ) : null}
     </div>
   )
 }

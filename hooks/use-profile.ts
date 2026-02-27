@@ -16,12 +16,11 @@ interface Profile {
   auto_post_enabled?: boolean
   timezone?: string | null
   linkedin_connected?: boolean
+  linkedin_profile_image_url?: string | null
   linkedin_access_token_expires_at?: number | null
   linkedin_refresh_token_expires_at?: number | null
   linkedin_token_warning?: string | null
   linkedin_needs_reconnect?: boolean
-  x_connected?: boolean
-  x_username?: string | null
   created_at: number | string
   updated_at: number | string
 }

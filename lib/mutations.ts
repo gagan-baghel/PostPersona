@@ -200,34 +200,3 @@ export async function disconnectLinkedIn(): Promise<{ success: boolean; error?: 
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
 }
-
-export async function connectX(nextPath?: string): Promise<{ success: boolean; error?: string; authUrl?: string }> {
-    try {
-        const response = await fetch('/api/x/connect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nextPath }),
-        })
-        const data = await response.json().catch(() => ({}))
-        if (!response.ok) {
-            return { success: false, error: data.error || 'Failed to connect X' }
-        }
-        return { success: true, authUrl: data.authUrl }
-    } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
-}
-
-export async function disconnectX(): Promise<{ success: boolean; error?: string }> {
-    try {
-        const response = await fetch('/api/x/disconnect', { method: 'POST' })
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}))
-            return { success: false, error: data.error || 'Failed to disconnect X' }
-        }
-        await mutate(CACHE_KEYS.user)
-        return { success: true }
-    } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
-}

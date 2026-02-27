@@ -164,7 +164,6 @@ export const createUser = mutationGeneric({
       linkedin_refresh_token: undefined,
       linkedin_access_token_expires_at: undefined,
       linkedin_refresh_token_expires_at: undefined,
-      x_connected: false,
       created_at: now,
       updated_at: now,
     })
@@ -436,7 +435,6 @@ export const listPosts = queryGeneric({
           ...post,
           id: post._id,
           posted_to_linkedin: post.posted_to_linkedin ?? false,
-          posted_to_x: post.posted_to_x ?? false,
           workflow_status: post.workflow_status ?? "draft",
           target_platform: post.target_platform ?? "linkedin",
           scheduled_for: post.scheduled_for ?? null,
@@ -480,8 +478,6 @@ export const createPost = mutationGeneric({
     aiModelVersion: v.optional(v.string()),
     postedToLinkedin: v.optional(v.boolean()),
     linkedinPostId: v.optional(v.string()),
-    postedToX: v.optional(v.boolean()),
-    xPostId: v.optional(v.string()),
     workflowStatus: v.optional(v.string()),
     targetPlatform: v.optional(v.string()),
     scheduledFor: v.optional(v.number()),
@@ -510,8 +506,6 @@ export const createPost = mutationGeneric({
       ai_model_version: args.aiModelVersion,
       posted_to_linkedin: args.postedToLinkedin,
       linkedin_post_id: args.linkedinPostId,
-      posted_to_x: args.postedToX,
-      x_post_id: args.xPostId,
       workflow_status: args.workflowStatus ?? "draft",
       target_platform: args.targetPlatform ?? "linkedin",
       scheduled_for: args.scheduledFor,
@@ -700,11 +694,9 @@ export const markScheduledPostPublished = mutationGeneric({
     userId: v.id("users"),
     postId: v.id("posts"),
     linkedinPostId: v.optional(v.string()),
-    xPostId: v.optional(v.string()),
     postedLinkedin: v.optional(v.boolean()),
-    postedX: v.optional(v.boolean()),
   },
-  handler: async (ctx, { userId, postId, linkedinPostId, xPostId, postedLinkedin, postedX }) => {
+  handler: async (ctx, { userId, postId, linkedinPostId, postedLinkedin }) => {
     const post = await ctx.db.get(postId)
     if (!post || post.user_id !== userId) return { ok: false, error: "FORBIDDEN" as const }
 
@@ -714,8 +706,6 @@ export const markScheduledPostPublished = mutationGeneric({
       queue_position: undefined,
       posted_to_linkedin: postedLinkedin ?? post.posted_to_linkedin ?? false,
       linkedin_post_id: linkedinPostId ?? post.linkedin_post_id,
-      posted_to_x: postedX ?? post.posted_to_x ?? false,
-      x_post_id: xPostId ?? post.x_post_id,
       publish_next_retry_at: undefined,
       publish_last_error: undefined,
       publish_lock_until: undefined,
@@ -992,12 +982,12 @@ export const setLinkedinConnection = mutationGeneric({
     accessTokenExpiresAt: v.optional(v.number()),
     refreshTokenExpiresAt: v.optional(v.number()),
     profileId: v.optional(v.string()),
+    profileImageUrl: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, connected, accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt, profileId }) => {
+  handler: async (ctx, { userId, connected, accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt, profileId, profileImageUrl }) => {
     const profile = await ctx.db.query("profiles").withIndex("by_user_id", (q) => q.eq("user_id", userId)).unique()
     if (!profile) return { ok: false, error: "PROFILE_NOT_FOUND" as const }
 
-    const xStillConnected = profile.x_connected === true
     await ctx.db.patch(profile._id, {
       linkedin_connected: connected,
       linkedin_access_token: accessToken,
@@ -1005,33 +995,8 @@ export const setLinkedinConnection = mutationGeneric({
       linkedin_access_token_expires_at: accessTokenExpiresAt,
       linkedin_refresh_token_expires_at: refreshTokenExpiresAt,
       linkedin_profile_id: profileId,
-      auto_post_enabled: connected ? profile.auto_post_enabled : xStillConnected ? profile.auto_post_enabled : false,
-      updated_at: Date.now(),
-    })
-
-    return { ok: true }
-  },
-})
-
-export const setXConnection = mutationGeneric({
-  args: {
-    userId: v.id("users"),
-    connected: v.boolean(),
-    accessToken: v.optional(v.string()),
-    xUserId: v.optional(v.string()),
-    xUsername: v.optional(v.string()),
-  },
-  handler: async (ctx, { userId, connected, accessToken, xUserId, xUsername }) => {
-    const profile = await ctx.db.query("profiles").withIndex("by_user_id", (q) => q.eq("user_id", userId)).unique()
-    if (!profile) return { ok: false, error: "PROFILE_NOT_FOUND" as const }
-
-    const liStillConnected = profile.linkedin_connected === true
-    await ctx.db.patch(profile._id, {
-      x_connected: connected,
-      x_access_token: accessToken,
-      x_user_id: xUserId,
-      x_username: xUsername,
-      auto_post_enabled: connected ? profile.auto_post_enabled : liStillConnected ? profile.auto_post_enabled : false,
+      linkedin_profile_image_url: profileImageUrl,
+      auto_post_enabled: connected ? profile.auto_post_enabled : false,
       updated_at: Date.now(),
     })
 
@@ -1052,9 +1017,6 @@ export const backfillProfiles = mutationGeneric({
       }
       if (typeof profile.allow_profile_in_explore !== "boolean") {
         patch.allow_profile_in_explore = true
-      }
-      if (typeof profile.x_connected !== "boolean") {
-        patch.x_connected = false
       }
       if (!profile.posting_schedule) {
         patch.posting_schedule = DEFAULT_POSTING_SCHEDULE
@@ -1094,7 +1056,6 @@ export const getDashboardAnalytics = queryGeneric({
     const posts30d = posts.filter((p) => p.created_at >= thirtyDaysAgo)
     const posts7d = posts.filter((p) => p.created_at >= sevenDaysAgo)
     const postedToLinkedinCount = posts.filter((p) => p.posted_to_linkedin).length
-    const postedToXCount = posts.filter((p) => p.posted_to_x).length
     const publicPersonas = personas.filter((p) => p.is_public).length
 
     const dailyCounts = new Map<string, number>()
@@ -1126,14 +1087,12 @@ export const getDashboardAnalytics = queryGeneric({
         publicPersonas,
         posts30d: posts30d.length,
         postedToLinkedin: postedToLinkedinCount,
-        postedToX: postedToXCount,
         coins: profile?.coins ?? 0,
         coinsSpent30d: spent30d,
       },
       weeklySeries,
       connections: {
         linkedin: profile?.linkedin_connected ?? false,
-        x: profile?.x_connected ?? false,
       },
     }
   },

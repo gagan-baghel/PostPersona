@@ -1,13 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
-import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
@@ -17,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,8 +26,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { PageHeader } from "@/components/dashboard/page-header"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { CalendarClock, CheckCircle2, Clock3, GripVertical, RefreshCw, Sparkles, Trash2, XCircle } from "lucide-react"
+import { CalendarClock, CheckCircle2, Clock3, GripVertical, RefreshCw, Trash2, XCircle } from "lucide-react"
 
 interface ReviewPost {
   id: string
@@ -47,16 +45,8 @@ interface ReviewPost {
   personas: { name: string; title: string | null } | null
 }
 
-interface PersonaOption {
-  id: string
-  name: string
-}
-
-type PlatformTag = "linkedin" | "x"
-
 interface UserConnections {
   linkedin_connected: boolean
-  x_connected: boolean
   auto_post_enabled: boolean
 }
 
@@ -99,41 +89,8 @@ function QueueLinkedInPreview({
   )
 }
 
-function QueueXPreview({
-  name,
-  content,
-}: {
-  name: string
-  content: string
-}) {
-  const handle = name.toLowerCase().replace(/[^a-z0-9]/g, "") || "persona"
-
-  return (
-    <div className="rounded-xl border bg-card p-3">
-      <div className="mb-2 flex items-start gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold">
-          {name.charAt(0).toUpperCase()}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{name}</p>
-          <p className="truncate text-xs text-muted-foreground">@{handle} · queued</p>
-        </div>
-      </div>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
-      <div className="mt-3 grid grid-cols-4 text-xs text-muted-foreground">
-        <div className="text-center">Reply</div>
-        <div className="text-center">Repost</div>
-        <div className="text-center">Like</div>
-        <div className="text-center">Views</div>
-      </div>
-    </div>
-  )
-}
-
 export default function ReviewPage() {
-  const searchParams = useSearchParams()
   const [posts, setPosts] = useState<ReviewPost[]>([])
-  const [personas, setPersonas] = useState<PersonaOption[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [notesById, setNotesById] = useState<Record<string, string>>({})
   const [manualScheduleById, setManualScheduleById] = useState<Record<string, string>>({})
@@ -141,15 +98,10 @@ export default function ReviewPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<{ id: string; action: "approve" | "reject" | "reschedule" | "delete" | "replay" } | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [scheduleWeekOpen, setScheduleWeekOpen] = useState(false)
-  const [isGeneratingWeek, setIsGeneratingWeek] = useState(false)
-  const [weekPersonaId, setWeekPersonaId] = useState("")
-  const [weekTopic, setWeekTopic] = useState("")
-  const [weekPlatform, setWeekPlatform] = useState<"linkedin" | "x" | "both">("linkedin")
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const [previewPost, setPreviewPost] = useState<ReviewPost | null>(null)
   const [connections, setConnections] = useState<UserConnections>({
     linkedin_connected: false,
-    x_connected: false,
     auto_post_enabled: false,
   })
 
@@ -171,33 +123,23 @@ export default function ReviewPage() {
   const load = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [reviewResponse, personasResponse, userResponse] = await Promise.all([
+      const [reviewResponse, userResponse] = await Promise.all([
         fetch("/api/posts/review"),
-        fetch("/api/personas"),
         fetch("/api/user"),
       ])
 
-      const [reviewData, personasData, userData] = await Promise.all([
+      const [reviewData, userData] = await Promise.all([
         reviewResponse.json().catch(() => []),
-        personasResponse.json().catch(() => []),
         userResponse.json().catch(() => ({})),
       ])
 
       if (!reviewResponse.ok) throw new Error(reviewData.error || "Failed to load review posts")
-      if (!personasResponse.ok) throw new Error(personasData.error || "Failed to load personas")
       if (!userResponse.ok) throw new Error(userData.error || "Failed to load account status")
 
       setPosts(Array.isArray(reviewData) ? reviewData : [])
 
-      const options = Array.isArray(personasData)
-        ? personasData.map((p: any) => ({ id: String(p.id), name: String(p.name || "Untitled Persona") }))
-        : []
-      setPersonas(options)
-      setWeekPersonaId((prev) => prev || options[0]?.id || "")
-
       setConnections({
         linkedin_connected: Boolean(userData.linkedin_connected),
-        x_connected: Boolean(userData.x_connected),
         auto_post_enabled: Boolean(userData.auto_post_enabled),
       })
     } catch (error) {
@@ -211,26 +153,6 @@ export default function ReviewPage() {
     void load()
   }, [load])
 
-  useEffect(() => {
-    if (searchParams.get("scheduleWeek") === "1") {
-      setScheduleWeekOpen(true)
-    }
-  }, [searchParams])
-
-  const platformBadgeLabel = (platform?: string) => {
-    if (platform === "x") return "X"
-    if (platform === "both") return "LinkedIn + X"
-    return "LinkedIn"
-  }
-
-  const toPlatformTags = (platform?: string): PlatformTag[] => {
-    if (platform === "both") return ["linkedin", "x"]
-    if (platform === "x") return ["x"]
-    return ["linkedin"]
-  }
-
-  const platformName = (platform: PlatformTag) => (platform === "x" ? "X" : "LinkedIn")
-
   const openPreview = (post: ReviewPost) => setPreviewPost(post)
 
   const handleScheduledCardClick = (event: MouseEvent, post: ReviewPost) => {
@@ -239,42 +161,13 @@ export default function ReviewPage() {
     openPreview(post)
   }
 
-  const updateScheduledTargets = async (id: string, targets: PlatformTag[]) => {
-    setWorkingId(id)
-    try {
-      const response = await fetch(`/api/posts/${id}/review`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "setTargets", targets }),
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || "Failed to update targets")
-
-      if (data.deleted) {
-        toast.success("Post deleted because no platforms were selected")
-      } else {
-        toast.success("Platform targets updated")
-      }
-      await load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update targets")
-    } finally {
-      setWorkingId(null)
-    }
-  }
-
   const hasLinkedInScheduled = useMemo(
-    () => scheduledPosts.some((post) => toPlatformTags(post.target_platform).includes("linkedin")),
+    () => scheduledPosts.some((post) => (post.target_platform || "linkedin") === "linkedin"),
     [scheduledPosts],
   )
-  const hasXScheduled = useMemo(
-    () => scheduledPosts.some((post) => toPlatformTags(post.target_platform).includes("x")),
-    [scheduledPosts],
-  )
-  const hasAnyChannelConnected = connections.linkedin_connected || connections.x_connected
 
   const setAutoPost = async (enabled: boolean) => {
-    const next = enabled && hasAnyChannelConnected
+    const next = enabled && connections.linkedin_connected
     try {
       const response = await fetch("/api/user", {
         method: "PATCH",
@@ -399,37 +292,6 @@ export default function ReviewPage() {
     }
   }
 
-  const generateWeeklyPosts = async () => {
-    if (!weekPersonaId) {
-      toast.error("Select a persona first")
-      return
-    }
-
-    setIsGeneratingWeek(true)
-    try {
-      const response = await fetch("/api/posts/review/schedule-week", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          personaId: weekPersonaId,
-          topic: weekTopic.trim() || undefined,
-          targetPlatform: weekPlatform,
-        }),
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || "Failed to generate weekly posts")
-
-      toast.success(`Created ${data.created || 7} posts in pending review`)
-      setScheduleWeekOpen(false)
-      setWeekTopic("")
-      await load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to generate weekly posts")
-    } finally {
-      setIsGeneratingWeek(false)
-    }
-  }
-
   return (
     <div className="space-y-3 p-1 sm:p-2 md:p-3">
       <PageHeader
@@ -442,10 +304,6 @@ export default function ReviewPage() {
             <Button variant="outline" className="bg-transparent" onClick={() => void load()} disabled={isLoading}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
-            </Button>
-            <Button onClick={() => setScheduleWeekOpen(true)} disabled={personas.length === 0}>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Schedule Week
             </Button>
           </>
         }
@@ -468,7 +326,7 @@ export default function ReviewPage() {
                       <p className="text-xs text-muted-foreground">{post.personas?.name || "Persona"}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">{platformBadgeLabel(post.target_platform)}</Badge>
+                      <Badge variant="outline">LinkedIn</Badge>
                       <Badge>{post.workflow_status || "review"}</Badge>
                     </div>
                   </div>
@@ -500,15 +358,14 @@ export default function ReviewPage() {
               <div className="flex items-center gap-2 rounded-md border px-2 py-1">
                 <span className="text-xs text-muted-foreground">Auto Post</span>
                 <Switch
-                  checked={hasAnyChannelConnected ? connections.auto_post_enabled : false}
+                  checked={connections.linkedin_connected ? connections.auto_post_enabled : false}
                   onCheckedChange={(checked) => void setAutoPost(checked)}
-                  disabled={!hasAnyChannelConnected}
+                  disabled={!connections.linkedin_connected}
                 />
               </div>
               {hasLinkedInScheduled && !connections.linkedin_connected && (
                 <Badge variant="destructive">LinkedIn not connected</Badge>
               )}
-              {hasXScheduled && !connections.x_connected && <Badge variant="destructive">X not connected</Badge>}
             </div>
           </div>
           {isLoading ? (
@@ -520,35 +377,42 @@ export default function ReviewPage() {
               <Card
                 key={post.id}
                 draggable
-                className="cursor-pointer"
+                className={cn(
+                  "cursor-pointer",
+                  draggingId === post.id && "border-primary/45 opacity-80 shadow-[0_0_0_1px_rgba(59,130,246,0.45)]",
+                  dropTargetId === post.id && "border-primary/60 shadow-[0_0_0_1px_rgba(59,130,246,0.6)]",
+                )}
                 onDragStart={() => setDraggingId(post.id)}
+                onDragEnter={() => setDropTargetId(post.id)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={async (e) => {
                   e.preventDefault()
                   if (!draggingId || draggingId === post.id) return
                   await reorderScheduled(draggingId, post.id)
                   setDraggingId(null)
+                  setDropTargetId(null)
+                }}
+                onDragEnd={() => {
+                  setDraggingId(null)
+                  setDropTargetId(null)
                 }}
                 onClick={(e) => handleScheduledCardClick(e, post)}
               >
                 <CardContent className="space-y-3 p-4">
-                  {(() => {
-                    const activeTags = toPlatformTags(post.target_platform)
-                    const canAddLinkedIn = !activeTags.includes("linkedin")
-                    const canAddX = !activeTags.includes("x")
-                    return (
-                      <>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      <Badge variant="secondary">#{index + 1}</Badge>
+                      <Badge variant="secondary" className="metric-mono">#{index + 1}</Badge>
                       <div>
                         <p className="font-medium">{post.topic}</p>
                         <p className="text-xs text-muted-foreground">{post.personas?.name || "Persona"}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary"><Clock3 className="mr-1 h-3.5 w-3.5" /> Scheduled</Badge>
+                      <Badge variant="secondary" className={cn("metric-mono", post.publish_next_retry_at ? "status-pulse border-amber-400/55 text-amber-200" : undefined)}>
+                        <Clock3 className="mr-1 h-3.5 w-3.5" /> {post.publish_next_retry_at ? "Retrying" : "Scheduled"}
+                      </Badge>
+                      <Badge variant="outline">LinkedIn</Badge>
                       <Button
                         size="sm"
                         variant="outline"
@@ -562,65 +426,9 @@ export default function ReviewPage() {
                       </Button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {activeTags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="gap-1 pr-1">
-                        {platformName(tag)}
-                        <button
-                          type="button"
-                          className="ml-1 rounded px-1 text-xs hover:bg-muted"
-                          onClick={() => {
-                            const next = activeTags.filter((p) => p !== tag)
-                            void updateScheduledTargets(post.id, next)
-                          }}
-                          disabled={workingId === post.id}
-                          aria-label={`Remove ${platformName(tag)} target`}
-                        >
-                          ×
-                        </button>
-                      </Badge>
-                    ))}
-                    {canAddLinkedIn && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => void updateScheduledTargets(post.id, [...activeTags, "linkedin"])}
-                        disabled={workingId === post.id}
-                      >
-                        + LinkedIn
-                      </Button>
-                    )}
-                    {canAddX && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => void updateScheduledTargets(post.id, [...activeTags, "x"])}
-                        disabled={workingId === post.id}
-                      >
-                        + X
-                      </Button>
-                    )}
+                  <div className="metric-mono text-xs text-muted-foreground">
+                    Current slot: {post.scheduled_for ? new Date(post.scheduled_for).toLocaleString() : "Not set"}
                   </div>
-                  {(() => {
-                    const tags = toPlatformTags(post.target_platform)
-                    const linkedinRequired = tags.includes("linkedin")
-                    const xRequired = tags.includes("x")
-                    const readyForDate =
-                      (!linkedinRequired || connections.linkedin_connected) &&
-                      (!xRequired || connections.x_connected)
-
-                    if (!readyForDate) {
-                      return <div className="text-sm text-destructive">Connect required channel(s) to show schedule slot</div>
-                    }
-
-                    return (
-                      <div className="text-sm text-muted-foreground">
-                        Current slot: {post.scheduled_for ? new Date(post.scheduled_for).toLocaleString() : "Not set"}
-                      </div>
-                    )
-                  })()}
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="min-w-[220px] flex-1">
                       <label className="mb-1 block text-xs text-muted-foreground">Change schedule</label>
@@ -634,11 +442,7 @@ export default function ReviewPage() {
                       variant="outline"
                       className="bg-transparent"
                       onClick={() => askConfirmation(post.id, "reschedule")}
-                      disabled={
-                        workingId === post.id ||
-                        (toPlatformTags(post.target_platform).includes("linkedin") && !connections.linkedin_connected) ||
-                        (toPlatformTags(post.target_platform).includes("x") && !connections.x_connected)
-                      }
+                      disabled={workingId === post.id || !connections.linkedin_connected}
                     >
                       <CalendarClock className="mr-2 h-4 w-4" /> Reschedule
                     </Button>
@@ -650,9 +454,6 @@ export default function ReviewPage() {
                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
                   </div>
-                      </>
-                    )
-                  })()}
                 </CardContent>
               </Card>
             ))
@@ -675,12 +476,12 @@ export default function ReviewPage() {
                     <p className="font-medium">{post.topic}</p>
                     <p className="text-xs text-muted-foreground">{post.personas?.name || "Persona"}</p>
                   </div>
-                  <Badge variant="destructive">Dead Letter</Badge>
+                  <Badge variant="destructive" className="status-pulse">Dead Letter</Badge>
                 </div>
                 <p className="line-clamp-3 text-sm text-muted-foreground">{post.content}</p>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <Badge variant="secondary">Attempts: {post.publish_attempt_count || 0}</Badge>
-                  {post.publish_last_error ? <Badge variant="outline" className="max-w-full truncate">Error: {post.publish_last_error}</Badge> : null}
+                  <Badge variant="secondary" className="metric-mono">Attempts: {post.publish_attempt_count || 0}</Badge>
+                  {post.publish_last_error ? <Badge variant="outline" className="max-w-full truncate metric-mono">Error: {post.publish_last_error}</Badge> : null}
                 </div>
                 <Button onClick={() => askConfirmation(post.id, "replay")} disabled={workingId === post.id}>
                   Replay to Scheduled Queue
@@ -691,87 +492,22 @@ export default function ReviewPage() {
         )}
       </section>
 
-      <Dialog open={scheduleWeekOpen} onOpenChange={setScheduleWeekOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Schedule Week</DialogTitle>
-            <DialogDescription>
-              Generate 7 posts and send them to pending review. Topic is optional, and trend-based topics are used if empty.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Persona</Label>
-              <Select value={weekPersonaId} onValueChange={setWeekPersonaId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select persona" />
-                </SelectTrigger>
-                <SelectContent>
-                  {personas.map((persona) => (
-                    <SelectItem key={persona.id} value={persona.id}>
-                      {persona.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Topic (optional)</Label>
-              <Input
-                placeholder="e.g. AI product strategy for founders"
-                value={weekTopic}
-                onChange={(e) => setWeekTopic(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Target platform</Label>
-              <Select value={weekPlatform} onValueChange={(value) => setWeekPlatform(value as "linkedin" | "x" | "both")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="linkedin">LinkedIn</SelectItem>
-                  <SelectItem value="x">X</SelectItem>
-                  <SelectItem value="both">LinkedIn + X</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleWeekOpen(false)}>Cancel</Button>
-            <Button onClick={generateWeeklyPosts} disabled={isGeneratingWeek || !weekPersonaId}>
-              {isGeneratingWeek ? "Generating..." : "Generate 7 Posts"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={Boolean(previewPost)} onOpenChange={(open) => !open && setPreviewPost(null)}>
         <DialogContent className="flex h-[min(90dvh,760px)] w-[95vw] max-w-2xl flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6">
             <DialogTitle>{previewPost?.topic || "Post Preview"}</DialogTitle>
             <DialogDescription className="flex items-center gap-2">
-              <Badge variant="outline">{platformBadgeLabel(previewPost?.target_platform)}</Badge>
+              <Badge variant="outline">LinkedIn</Badge>
               <span>{previewPost?.personas?.name || "Persona"}</span>
             </DialogDescription>
           </DialogHeader>
           {previewPost && (
             <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
-              <div className="space-y-3">
-              {(previewPost.target_platform === "linkedin" || previewPost.target_platform === "both" || !previewPost.target_platform) && (
-                <QueueLinkedInPreview
-                  name={previewPost.personas?.name || "Persona"}
-                  title={previewPost.personas?.title}
-                  content={previewPost.content}
-                />
-              )}
-              {(previewPost.target_platform === "x" || previewPost.target_platform === "both") && (
-                <QueueXPreview
-                  name={previewPost.personas?.name || "Persona"}
-                  content={previewPost.content}
-                />
-              )}
-              </div>
+              <QueueLinkedInPreview
+                name={previewPost.personas?.name || "Persona"}
+                title={previewPost.personas?.title}
+                content={previewPost.content}
+              />
             </div>
           )}
           <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">

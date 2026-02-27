@@ -6,7 +6,6 @@ import { generateWithGrok } from "@/lib/ai/grok"
 import { GeneratePostSchema } from "@/lib/validation/schemas"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
-import { enforceXLimit, needsXLimit } from "@/lib/social/platform-limits"
 
 const AIOutputSchema = z.object({
   content: z.string().min(10, "Generated content too short"),
@@ -158,7 +157,8 @@ export async function POST(request: Request) {
     const validation = GeneratePostSchema.safeParse(body)
 
     if (!validation.success) {
-      return NextResponse.json({ error: "Invalid input", details: validation.error.format() }, { status: 400 })
+      const firstIssue = validation.error.issues[0]?.message || "Invalid input"
+      return NextResponse.json({ error: firstIssue, details: validation.error.format() }, { status: 400 })
     }
 
     const { avatarId, topic, targetPlatform } = validation.data
@@ -208,21 +208,6 @@ export async function POST(request: Request) {
       resultJson = {
         content: fallbackContent,
         hashtags: extractHashtagsFromText(fallbackContent),
-      }
-    }
-
-    if (needsXLimit(targetPlatform)) {
-      const xLimit = enforceXLimit(resultJson.content)
-      if (!xLimit.ok) {
-        return NextResponse.json(
-          {
-            error: `Generated content exceeds X limit (${xLimit.count}/${xLimit.limit}). Try a shorter topic.`,
-            code: "X_CHAR_LIMIT_EXCEEDED",
-            maxChars: xLimit.limit,
-            currentChars: xLimit.count,
-          },
-          { status: 422 },
-        )
       }
     }
 

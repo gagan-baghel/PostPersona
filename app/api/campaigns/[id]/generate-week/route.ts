@@ -8,7 +8,7 @@ import { convexMutation, convexQuery } from "@/lib/convex/client"
 
 const GenerateCampaignWeekSchema = z.object({
   personaId: z.string().optional(),
-  targetPlatform: z.enum(["linkedin", "x", "both"]).default("linkedin"),
+  targetPlatform: z.literal("linkedin").default("linkedin"),
 })
 
 const WeeklyOutputSchema = z.object({

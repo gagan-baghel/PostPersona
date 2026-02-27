@@ -32,3 +32,6 @@ next-env.d.ts
 .kiro/
 .skills/
 skills-lock.json
+
+
+.DS_Store

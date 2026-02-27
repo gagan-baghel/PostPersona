@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { getSessionUserIdFromServerCookies } from "@/lib/auth/session"
+import { BrandLogo } from "@/components/brand-logo"
 
 export default async function HomePage() {
   const userId = await getSessionUserIdFromServerCookies()
@@ -14,10 +15,10 @@ export default async function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="ui-glass border-b border-border">
         <div className="container mx-auto flex min-h-14 items-center justify-between gap-2 px-3 sm:h-16 sm:px-6">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary shrink-0" />
+            <BrandLogo size={32} className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
             <span className="text-sm font-bold truncate sm:text-xl">PersonaPost</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -37,7 +38,7 @@ export default async function HomePage() {
       {/* Hero Section */}
       <main className="flex-1">
         <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-24">
-          <div className="mx-auto max-w-4xl text-center">
+          <div className="ui-glass mx-auto max-w-4xl rounded-2xl border p-6 text-center sm:p-8">
             <h1 className="text-balance text-4xl sm:text-5xl md:text-6xl font-bold leading-tight tracking-tight">
               AI-Powered LinkedIn Content Creation
             </h1>

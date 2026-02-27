@@ -220,7 +220,7 @@ export async function GET(request: Request) {
 
     const posts = (rawPosts ?? [])
       .filter((post) => {
-        const isLinkedInTarget = post.target_platform === "linkedin" || post.target_platform === "both"
+        const isLinkedInTarget = post.target_platform === "linkedin"
         return Boolean(post.posted_to_linkedin) || (isLinkedInTarget && (post.workflow_status ?? "draft") === "posted")
       })
       .map((post) => ({

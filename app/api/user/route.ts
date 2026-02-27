@@ -33,12 +33,11 @@ export async function GET(request: Request) {
       auto_post_enabled: profile?.auto_post_enabled ?? false,
       timezone: profile?.timezone ?? "UTC",
       linkedin_connected: profile?.linkedin_connected ?? false,
+      linkedin_profile_image_url: profile?.linkedin_profile_image_url ?? null,
       linkedin_access_token_expires_at: profile?.linkedin_access_token_expires_at ?? null,
       linkedin_refresh_token_expires_at: profile?.linkedin_refresh_token_expires_at ?? null,
       linkedin_token_warning: tokenHealth.warning,
       linkedin_needs_reconnect: tokenHealth.needsReconnect,
-      x_connected: profile?.x_connected ?? false,
-      x_username: profile?.x_username ?? null,
       created_at: user.created_at,
       updated_at: profile?.updated_at ?? user.created_at,
     })

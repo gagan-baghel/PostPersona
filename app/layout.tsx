@@ -1,13 +1,9 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { SWRProvider } from "@/lib/swr-provider"
 import { Toaster } from "sonner"
 import "./globals.css"
-
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "PersonaPost - AI-Powered LinkedIn Content Creation",
@@ -17,16 +13,19 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
+        url: "/favicon.png",
+        sizes: "32x32",
+        type: "image/png",
       },
       {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
+        url: "/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
       },
       {
-        url: "/icon.svg",
-        type: "image/svg+xml",
+        url: "/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
       },
     ],
     apple: "/apple-icon.png",
@@ -40,7 +39,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="font-sans antialiased text-[14px] sm:text-[15px]">
+      <body className="font-sans antialiased text-[13px] sm:text-[14px]">
         <SWRProvider>
           {children}
           <Analytics />

@@ -14,7 +14,6 @@ interface Post {
   image_prompt: string | null
   image_preset: string | null
   posted_to_linkedin: boolean
-  posted_to_x: boolean
   workflow_status?: string
   target_platform?: string
   scheduled_for?: number | null

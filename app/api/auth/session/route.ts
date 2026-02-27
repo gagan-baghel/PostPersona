@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server"
 
-import { getSessionUserIdFromRequest } from "@/lib/auth/session"
+import { clearSessionCookie, getSessionUserIdFromRequest, getCookieValueFromHeader, SESSION_COOKIE_NAME } from "@/lib/auth/session"
 import { convexQuery } from "@/lib/convex/client"
 
 export async function GET(request: Request) {
   try {
+    const cookieHeader = request.headers.get("cookie")
+    const hasSessionCookie = Boolean(getCookieValueFromHeader(cookieHeader, SESSION_COOKIE_NAME))
     const userId = getSessionUserIdFromRequest(request)
     if (!userId) {
-      return NextResponse.json({ session: null, user: null })
+      const response = NextResponse.json({ session: null, user: null })
+      if (hasSessionCookie) {
+        clearSessionCookie(response)
+      }
+      return response
     }
 
     const user = await convexQuery<any>("app:getUserById", { userId })
     if (!user) {
-      return NextResponse.json({ session: null, user: null })
+      const response = NextResponse.json({ session: null, user: null })
+      clearSessionCookie(response)
+      return response
     }
 
     const profile = await convexQuery<any>("app:getProfile", { userId })

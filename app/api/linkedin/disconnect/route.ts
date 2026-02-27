@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       accessTokenExpiresAt: undefined,
       refreshTokenExpiresAt: undefined,
       profileId: undefined,
+      profileImageUrl: undefined,
     })
 
     if (!result?.ok) {

@@ -5,12 +5,11 @@ import { buildWeeklyStructuredPrompt } from "@/lib/ai/prompt-builder"
 import { generateWithGrok } from "@/lib/ai/grok"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
-import { enforceXLimit, needsXLimit } from "@/lib/social/platform-limits"
 
 const ScheduleWeekSchema = z.object({
   personaId: z.string().min(1, "Persona ID is required"),
   topic: z.string().max(500).optional(),
-  targetPlatform: z.enum(["linkedin", "x", "both"]).default("linkedin"),
+  targetPlatform: z.literal("linkedin").default("linkedin"),
 })
 
 const WeeklyOutputSchema = z.object({
@@ -195,12 +194,6 @@ export async function POST(request: Request) {
     for (let i = 0; i < parsed.posts.length; i++) {
       const item = parsed.posts[i]
       const content = item.content.trim()
-      if (needsXLimit(targetPlatform)) {
-        const xLimit = enforceXLimit(content)
-        if (!xLimit.ok) {
-          throw new AIOutputFormatError(`Weekly post ${i + 1} exceeds X limit (${xLimit.count}/${xLimit.limit})`)
-        }
-      }
       const result = await convexMutation<any>("app:createPost", {
         userId,
         personaId,

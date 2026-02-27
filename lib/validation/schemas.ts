@@ -6,13 +6,16 @@ const sanitizeInput = (val: string) => val.replace(/[\u0000-\u001F\u007F-\u009F]
 export const GeneratePostSchema = z.object({
     avatarId: z.string().min(1, "Persona ID is required"),
     // Topic: Allow alphanumeric, punctuation, emojis. Block generic injection attempts.
-    topic: z.string()
-        .min(5, "Topic must be at least 5 characters")
-        .max(500, "Topic too long")
-        .transform(sanitizeInput)
-        // Basic filter for script/html injection risks in the topic itself
-        .refine(val => !/<script|javascript:|on\w+=/i.test(val), "Invalid content detected in topic"),
-    targetPlatform: z.enum(["linkedin", "x", "both"]).optional().default("linkedin"),
+    topic: z.preprocess(
+        (val) => (typeof val === "string" ? sanitizeInput(val) : val),
+        z
+            .string()
+            .min(2, "Topic must be at least 2 characters")
+            .max(500, "Topic too long")
+            // Basic filter for script/html injection risks in the topic itself
+            .refine((val) => !/<script|javascript:|on\w+=/i.test(val), "Invalid content detected in topic"),
+    ),
+    targetPlatform: z.literal("linkedin").optional().default("linkedin"),
 })
 
 export const ImagePromptSchema = z.object({
@@ -30,8 +33,8 @@ export const ImagePromptSchema = z.object({
 
 export const SavePostSchema = z.object({
     personaId: z.string().min(1, "Persona ID is required"),
-    topic: z.string().min(5).max(500).transform(sanitizeInput),
-    content: z.string().min(10).transform(sanitizeInput),
+    topic: z.preprocess((val) => (typeof val === "string" ? sanitizeInput(val) : val), z.string().min(2).max(500)),
+    content: z.preprocess((val) => (typeof val === "string" ? sanitizeInput(val) : val), z.string().min(10)),
     // Allow empty strings by transforming them to null, and use .catch() to avoid hard failures on weird values
     imageUrl: z.string().nullish().transform(val => val === "" ? null : val),
     cloudinaryPublicId: z.string().optional().nullable(),
@@ -40,7 +43,7 @@ export const SavePostSchema = z.object({
     imagePrompt: z.string().optional().nullable(),
     aiModelVersion: z.string().optional().nullable(),
     workflowStatus: z.enum(["draft", "review", "scheduled", "posted", "rejected"]).optional().nullable(),
-    targetPlatform: z.enum(["linkedin", "x", "both"]).optional().nullable(),
+    targetPlatform: z.literal("linkedin").optional().nullable(),
     scheduledFor: z.number().optional().nullable(),
     reviewNotes: z.string().optional().nullable(),
 })

@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { BrandLogo } from "@/components/brand-logo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,16 +55,16 @@ export function DashboardNav() {
 
   return (
     <>
-      <div className="flex h-full w-72 flex-col border-r bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <div className="flex h-16 items-center gap-2 border-b px-6">
-          <div className="h-8 w-8 rounded-lg bg-primary" />
+      <div className="ui-glass flex h-full w-72 flex-col border-r">
+        <div className="flex h-14 items-center gap-2 border-b px-4">
+          <BrandLogo size={32} className="h-8 w-8" />
           <div>
-            <p className="text-sm text-muted-foreground">Workspace</p>
+            <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Workspace</p>
             <p className="text-lg font-bold">PersonaPost</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 p-4">
+        <nav className="flex-1 space-y-1 p-3">
           {navItems.map((item) => {
             const isActive = item.href === "/dashboard" ? pathname === item.href : pathname.startsWith(item.href)
             const Icon = item.icon
@@ -72,10 +73,10 @@ export function DashboardNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-md px-2.5 py-2 text-[13px] font-medium transition-[background-color,color,border-color]",
                   isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    ? "border border-primary/40 bg-primary/20 text-primary"
+                    : "border border-transparent text-muted-foreground hover:border-border hover:bg-secondary/60 hover:text-foreground",
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -85,7 +86,7 @@ export function DashboardNav() {
           })}
         </nav>
 
-        <div className="border-t p-4">
+        <div className="border-t p-3">
           <Button onClick={() => setShowSignOutDialog(true)} variant="outline" className="w-full justify-start gap-2 bg-transparent">
             <LogOut className="h-4 w-4" />
             Sign Out

@@ -22,9 +22,9 @@ interface Post {
   image_url: string | null
   image_preset: string | null
   posted_to_linkedin: boolean
-  posted_to_x?: boolean
   workflow_status?: string
   scheduled_for?: number | null
+  posted_at?: number | string | null
   personas: {
     id: string
     name: string
@@ -61,7 +61,20 @@ export function PostCard({ post }: { post: Post }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const formattedDate = new Date(post.created_at).toLocaleDateString("en-US", {
+  const postedTimestamp =
+    typeof post.posted_at === "number"
+      ? post.posted_at
+      : typeof post.posted_at === "string"
+        ? (Number.isFinite(Number(post.posted_at)) ? Number(post.posted_at) : Date.parse(post.posted_at))
+        : null
+  const createdTimestamp =
+    Number.isFinite(Number(post.created_at)) ? Number(post.created_at) : Date.parse(post.created_at)
+  const timestampForDisplay =
+    post.workflow_status === "posted" && typeof postedTimestamp === "number"
+      ? postedTimestamp
+      : createdTimestamp
+
+  const formattedDate = new Date(timestampForDisplay).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -109,7 +122,7 @@ export function PostCard({ post }: { post: Post }) {
                 {post.personas?.title && <span className="text-sm text-muted-foreground"> • {post.personas.title}</span>}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{formattedDate}</span>
+                <span>{post.workflow_status === "posted" ? `Posted ${formattedDate}` : formattedDate}</span>
                 {post.posted_to_linkedin && (
                   <>
                     <span>•</span>
@@ -119,12 +132,6 @@ export function PostCard({ post }: { post: Post }) {
                       </svg>
                       Posted
                     </span>
-                  </>
-                )}
-                {post.posted_to_x && (
-                  <>
-                    <span>•</span>
-                    <span className="font-medium">Posted to X</span>
                   </>
                 )}
               </div>

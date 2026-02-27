@@ -13,8 +13,7 @@ import { Input } from "@/components/ui/input"
 import { useCoins } from "@/hooks/use-coins"
 import { toast } from "sonner"
 import { handleDownloadImage } from "@/utils/download-image"
-import { BarChart2, CheckCircle2, Copy, Heart, ImagePlus, Loader2, MessageCircle, Repeat2, Save, Send, Wand2 } from "lucide-react"
-import { X_POST_CHAR_LIMIT, countXCharacters, needsXLimit } from "@/lib/social/platform-limits"
+import { CheckCircle2, Copy, Heart, ImagePlus, Loader2, MessageCircle, Repeat2, Save, Send, Wand2 } from "lucide-react"
 
 interface Persona {
   id: string
@@ -82,54 +81,6 @@ function LinkedInPreview({
   )
 }
 
-function XPreview({
-  persona,
-  content,
-  imageUrl,
-}: {
-  persona?: Persona
-  content: string
-  imageUrl?: string | null
-}) {
-  const handle = (persona?.name || "persona").toLowerCase().replace(/[^a-z0-9]/g, "") || "persona"
-
-  return (
-    <div className="rounded-xl border bg-card p-3">
-      <div className="mb-2 flex items-start gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold">
-          {(persona?.name || "P").charAt(0).toUpperCase()}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{persona?.name || "Persona"}</p>
-          <p className="truncate text-xs text-muted-foreground">@{handle} · now</p>
-        </div>
-      </div>
-
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
-
-      {imageUrl ? (
-        <div className="mt-3 overflow-hidden rounded-2xl border">
-          <img
-            src={imageUrl}
-            alt="Generated post visual"
-            width={1200}
-            height={675}
-            loading="lazy"
-            className="h-auto w-full object-cover"
-          />
-        </div>
-      ) : null}
-
-      <div className="mt-3 grid grid-cols-4 text-xs text-muted-foreground">
-        <div className="flex items-center justify-center"><MessageCircle className="h-3.5 w-3.5" /></div>
-        <div className="flex items-center justify-center"><Repeat2 className="h-3.5 w-3.5" /></div>
-        <div className="flex items-center justify-center"><Heart className="h-3.5 w-3.5" /></div>
-        <div className="flex items-center justify-center"><BarChart2 className="h-3.5 w-3.5" /></div>
-      </div>
-    </div>
-  )
-}
-
 export function PostGenerator({
   avatars,
   selectedAvatar,
@@ -145,8 +96,6 @@ export function PostGenerator({
   const [generatedPost, setGeneratedPost] = useState("")
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
 
-  const [targetPlatform, setTargetPlatform] = useState<"linkedin" | "x" | "both">("linkedin")
-
   const [showImageTools, setShowImageTools] = useState(false)
   const [imagePreset, setImagePreset] = useState("infographic")
   const [imagePrompt, setImagePrompt] = useState("")
@@ -159,9 +108,6 @@ export function PostGenerator({
   const [isScheduling, setIsScheduling] = useState(false)
 
   const selectedPersona = useMemo(() => avatars.find((a) => a.id === personaId), [avatars, personaId])
-  const xCharCount = useMemo(() => countXCharacters(generatedPost), [generatedPost])
-  const xLimitedPlatform = useMemo(() => needsXLimit(targetPlatform), [targetPlatform])
-  const isXTooLong = xLimitedPlatform && xCharCount > X_POST_CHAR_LIMIT
 
   const payload = useMemo(
     () => ({
@@ -174,7 +120,7 @@ export function PostGenerator({
       imagePrompt: imagePrompt || null,
       imagePreset: generatedImageUrl ? imagePreset : null,
       aiModelVersion: generatedModel || "llama-3.3-70b",
-      targetPlatform,
+      targetPlatform: "linkedin",
     }),
     [
       personaId,
@@ -185,7 +131,6 @@ export function PostGenerator({
       imagePrompt,
       imagePreset,
       generatedModel,
-      targetPlatform,
     ],
   )
 
@@ -197,7 +142,7 @@ export function PostGenerator({
       const response = await fetch("/api/generate-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatarId: personaId, topic, targetPlatform }),
+        body: JSON.stringify({ avatarId: personaId, topic, targetPlatform: "linkedin" }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Failed to generate post")
@@ -211,7 +156,7 @@ export function PostGenerator({
     } finally {
       setIsGeneratingPost(false)
     }
-  }, [topic, personaId, mutateCoins, targetPlatform])
+  }, [topic, personaId, mutateCoins])
 
   const handleGenerateImage = useCallback(async () => {
     if (!generatedPost.trim()) return
@@ -317,23 +262,6 @@ export function PostGenerator({
             <Textarea rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What do you want to post about?" />
           </div>
 
-          <div className="space-y-2">
-            <Label>Target platform</Label>
-            <Select value={targetPlatform} onValueChange={(v: "linkedin" | "x" | "both") => setTargetPlatform(v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="linkedin">LinkedIn</SelectItem>
-                <SelectItem value="x">X</SelectItem>
-                <SelectItem value="both">LinkedIn + X</SelectItem>
-              </SelectContent>
-            </Select>
-            {targetPlatform !== "linkedin" ? (
-              <p className="text-xs text-muted-foreground">
-                X-safe generation is enforced ({X_POST_CHAR_LIMIT} chars max).
-              </p>
-            ) : null}
-          </div>
-
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button className="w-full sm:w-auto" onClick={handleGeneratePost} disabled={isGeneratingPost || !topic.trim() || !personaId || coins < 3}>
               {isGeneratingPost && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -346,7 +274,7 @@ export function PostGenerator({
           </div>
 
           {showImageTools && (
-            <div className="rounded-lg border p-3 space-y-3">
+            <div className="rounded-md border p-3 space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Image style</Label>
@@ -372,10 +300,10 @@ export function PostGenerator({
           )}
 
           <div className="flex flex-col gap-2 border-t pt-3">
-            <Button onClick={handleAddToQueue} disabled={isScheduling || !generatedPost || isXTooLong}>
+            <Button onClick={handleAddToQueue} disabled={isScheduling || !generatedPost}>
               {isScheduling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Add to Schedule Queue
             </Button>
-            <Button variant="outline" className="bg-transparent" onClick={handleSaveDraft} disabled={isSavingDraft || !generatedPost || isXTooLong}>
+            <Button variant="outline" className="bg-transparent" onClick={handleSaveDraft} disabled={isSavingDraft || !generatedPost}>
               {isSavingDraft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Draft
             </Button>
           </div>
@@ -385,7 +313,7 @@ export function PostGenerator({
       <Card>
         <CardHeader className="p-4 pb-0 sm:p-6 sm:pb-0">
           <CardTitle>Live Preview</CardTitle>
-          <CardDescription>{targetPlatform === "both" ? "LinkedIn + X" : targetPlatform === "x" ? "X" : "LinkedIn"} style card preview</CardDescription>
+          <CardDescription>LinkedIn style card preview</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0 sm:p-6 sm:pt-0">
           {!generatedPost ? (
@@ -396,18 +324,7 @@ export function PostGenerator({
                 <CheckCircle2 className="h-4 w-4 text-primary" />
                 <p className="text-xs text-muted-foreground">Draft ready. Review preview, then add to queue.</p>
               </div>
-              {(targetPlatform === "linkedin" || targetPlatform === "both") && (
-                <LinkedInPreview persona={selectedPersona} content={generatedPost} imageUrl={generatedImageUrl} />
-              )}
-              {(targetPlatform === "x" || targetPlatform === "both") && (
-                <XPreview persona={selectedPersona} content={generatedPost} imageUrl={generatedImageUrl} />
-              )}
-              {xLimitedPlatform && (
-                <p className={`text-xs ${isXTooLong ? "text-destructive" : "text-muted-foreground"}`}>
-                  X character count: {xCharCount}/{X_POST_CHAR_LIMIT}
-                  {isXTooLong ? " (too long for X)" : ""}
-                </p>
-              )}
+              <LinkedInPreview persona={selectedPersona} content={generatedPost} imageUrl={generatedImageUrl} />
               <Button
                 variant="outline"
                 className="w-full bg-transparent"
@@ -430,7 +347,7 @@ export function PostGenerator({
                 </Button>
               )}
               <ScrollArea className="h-24 rounded border p-2">
-                <p className="text-xs text-muted-foreground">Model: {generatedModel || "llama-3.3-70b"}</p>
+                <p className="metric-mono text-xs text-muted-foreground">Model: {generatedModel || "llama-3.3-70b"}</p>
               </ScrollArea>
             </>
           )}

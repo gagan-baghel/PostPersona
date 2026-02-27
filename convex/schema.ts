@@ -23,6 +23,8 @@ export default defineSchema({
     linkedin_access_token_expires_at: v.optional(v.number()),
     linkedin_refresh_token_expires_at: v.optional(v.number()),
     linkedin_profile_id: v.optional(v.string()),
+    linkedin_profile_image_url: v.optional(v.string()),
+    // Legacy fields kept for backward compatibility with existing documents.
     x_connected: v.optional(v.boolean()),
     x_access_token: v.optional(v.string()),
     x_user_id: v.optional(v.string()),
@@ -62,6 +64,7 @@ export default defineSchema({
     ai_model_version: v.optional(v.string()),
     posted_to_linkedin: v.optional(v.boolean()),
     linkedin_post_id: v.optional(v.string()),
+    // Legacy fields kept for backward compatibility with existing documents.
     posted_to_x: v.optional(v.boolean()),
     x_post_id: v.optional(v.string()),
     workflow_status: v.optional(v.string()),

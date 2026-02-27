@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { BrandLogo } from "@/components/brand-logo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,11 +67,11 @@ export function MobileNav() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-[86vw] max-w-72 p-0">
-          <SheetHeader className="border-b p-4">
+          <SheetHeader className="ui-glass border-b p-4">
             <SheetTitle className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary" />
+              <BrandLogo size={32} className="h-8 w-8" />
               <div className="text-left min-w-0">
-                <p className="text-xs text-muted-foreground">Workspace</p>
+                <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Workspace</p>
                 <p className="text-lg font-bold truncate">PersonaPost</p>
               </div>
             </SheetTitle>
@@ -86,10 +87,10 @@ export function MobileNav() {
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors min-w-0",
+                    "flex items-center gap-3 rounded-md px-2.5 py-2 text-[13px] font-medium transition-[background-color,color,border-color] min-w-0",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      ? "border border-primary/40 bg-primary/20 text-primary"
+                      : "border border-transparent text-muted-foreground hover:border-border hover:bg-secondary/60 hover:text-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4" />

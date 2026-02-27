@@ -45,26 +45,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ success: true, status: "scheduled", scheduledFor })
     }
 
-    if (action === "setTargets") {
-      const rawTargets = Array.isArray(body.targets) ? body.targets : []
-      const targets = Array.from(new Set(rawTargets.filter((t: unknown) => t === "linkedin" || t === "x"))) as Array<"linkedin" | "x">
-
-      if (targets.length === 0) {
-        const deleted = await convexMutation<any>("app:deletePost", { userId, postId: id })
-        if (!deleted?.ok) return NextResponse.json({ error: "Failed to delete post" }, { status: 400 })
-        return NextResponse.json({ success: true, deleted: true })
-      }
-
-      const targetPlatform = targets.length === 2 ? "both" : targets[0]
-      const result = await convexMutation<any>("app:setPostTargetPlatform", {
-        userId,
-        postId: id,
-        targetPlatform,
-      })
-      if (!result?.ok) return NextResponse.json({ error: "Failed to update target platforms" }, { status: 400 })
-      return NextResponse.json({ success: true, targetPlatform })
-    }
-
     if (action === "replay") {
       const result = await convexMutation<any>("app:replayDeadLetterPost", { userId, postId: id })
       if (!result?.ok) return NextResponse.json({ error: "Failed to replay post" }, { status: 400 })

@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { getSessionUserIdFromServerCookies } from "@/lib/auth/session"
+import { BrandLogo } from "@/components/brand-logo"
 
 export default async function PricingPage() {
   const user = await getSessionUserIdFromServerCookies()
@@ -61,10 +62,10 @@ export default async function PricingPage() {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="ui-glass border-b border-border">
         <div className="container mx-auto flex h-16 items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary" />
+            <BrandLogo size={32} className="h-8 w-8" />
             <span className="text-xl font-bold">PersonaPost</span>
           </Link>
           <div className="flex items-center gap-4">
@@ -89,7 +90,7 @@ export default async function PricingPage() {
       {/* Hero Section */}
       <main className="flex-1">
         <div className="container mx-auto px-6 py-16">
-          <div className="mb-16 text-center">
+          <div className="ui-glass mb-16 rounded-2xl border p-6 text-center sm:p-8">
             <h1 className="text-balance text-4xl font-bold tracking-tight md:text-5xl">Choose Your Plan</h1>
             <p className="mt-4 text-pretty text-lg text-muted-foreground">
               Start free, upgrade when you need more. No credit card required.
@@ -190,7 +191,7 @@ export default async function PricingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-card">
+      <footer className="ui-glass border-t border-border">
         <div className="container mx-auto px-6 py-8">
           <div className="text-center text-sm text-muted-foreground">© 2025 PersonaPost. All rights reserved.</div>
         </div>

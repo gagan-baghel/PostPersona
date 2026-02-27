@@ -13,8 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
 import { useProfile } from "@/hooks/use-profile"
-import { connectLinkedIn, connectX, deleteAccount, disconnectLinkedIn, disconnectX, updateProfile } from "@/lib/mutations"
-import { Linkedin, Loader2, Trash2, UserRound, X } from "lucide-react"
+import { connectLinkedIn, deleteAccount, disconnectLinkedIn, updateProfile } from "@/lib/mutations"
+import { Linkedin, Loader2, Trash2, UserRound } from "lucide-react"
 import { PageHeader } from "@/components/dashboard/page-header"
 import {
   AlertDialog,
@@ -51,7 +51,6 @@ export default function SettingsPage() {
   const [isSavingPrefs, setIsSavingPrefs] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLinkingLinkedIn, setIsLinkingLinkedIn] = useState(false)
-  const [isLinkingX, setIsLinkingX] = useState(false)
 
   useEffect(() => {
     if (!profile) return
@@ -70,23 +69,16 @@ export default function SettingsPage() {
       toast.success("LinkedIn connected")
       refetch()
     }
-    if (searchParams.get("x_success") === "true") {
-      toast.success("X connected")
-      refetch()
-    }
     if (searchParams.get("linkedin_error")) {
       toast.error(`LinkedIn connect failed: ${searchParams.get("linkedin_error")}`)
-    }
-    if (searchParams.get("x_error")) {
-      toast.error(`X connect failed: ${searchParams.get("x_error")}`)
     }
   }, [searchParams, refetch])
 
   const connectionSummary = useMemo(() => {
-    const channels = [profile?.linkedin_connected ? 1 : 0, profile?.x_connected ? 1 : 0]
+    const channels = [profile?.linkedin_connected ? 1 : 0]
     return channels.reduce((a, b) => a + b, 0)
-  }, [profile?.linkedin_connected, profile?.x_connected])
-  const canEnableAutoPost = Boolean(profile?.linkedin_connected || profile?.x_connected)
+  }, [profile?.linkedin_connected])
+  const canEnableAutoPost = Boolean(profile?.linkedin_connected)
 
   const handleSaveProfile = async () => {
     if (!user) return
@@ -144,30 +136,6 @@ export default function SettingsPage() {
     window.location.href = result.authUrl
   }
 
-  const handleX = async () => {
-    setIsLinkingX(true)
-    if (profile?.x_connected) {
-      const result = await disconnectX()
-      if (result.success) {
-        toast.success("X disconnected")
-        await refetch()
-      } else {
-        toast.error(result.error || "Failed to disconnect X")
-      }
-      setIsLinkingX(false)
-      return
-    }
-
-    const result = await connectX("/dashboard/settings")
-    if (!result.success || !result.authUrl) {
-      toast.error(result.error || "Failed to connect X")
-      setIsLinkingX(false)
-      return
-    }
-
-    window.location.href = result.authUrl
-  }
-
   const handleDeleteAccount = async () => {
     setIsDeleting(true)
     const result = await deleteAccount()
@@ -195,7 +163,7 @@ export default function SettingsPage() {
       <PageHeader
         title="Settings"
         description="Manage account profile, channels, and automation defaults."
-        rightSlot={<Badge variant="secondary">Channels: {connectionSummary}/2</Badge>}
+        rightSlot={<Badge variant="secondary">Channels: {connectionSummary}/1</Badge>}
       />
 
       <div className="grid gap-3 xl:grid-cols-3">
@@ -239,12 +207,24 @@ export default function SettingsPage() {
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Social Channels</CardTitle>
-            <CardDescription>Connect LinkedIn and X.</CardDescription>
+            <CardDescription>Connect LinkedIn.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid gap-4 md:grid-cols-1">
             <div className="rounded-lg border p-4">
               <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 font-medium"><Linkedin className="h-4 w-4 text-[#0A66C2]" /> LinkedIn</div>
+                <div className="flex items-center gap-2 font-medium">
+                  {profile?.linkedin_profile_image_url ? (
+                    <img
+                      src={profile.linkedin_profile_image_url}
+                      alt="LinkedIn profile"
+                      className="h-6 w-6 rounded-full border object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <Linkedin className="h-4 w-4 text-[#0A66C2]" />
+                  )}
+                  LinkedIn
+                </div>
                 <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>{profile?.linkedin_connected ? "Connected" : "Not connected"}</Badge>
               </div>
               {profile?.linkedin_token_warning ? (
@@ -255,19 +235,6 @@ export default function SettingsPage() {
               <Button onClick={handleLinkedIn} disabled={isLinkingLinkedIn} className="w-full">
                 {isLinkingLinkedIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {profile?.linkedin_connected ? "Disconnect LinkedIn" : "Connect LinkedIn"}
-              </Button>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 font-medium"><X className="h-4 w-4" /> X</div>
-                <Badge variant={profile?.x_connected ? "default" : "secondary"}>{profile?.x_connected ? "Connected" : "Not connected"}</Badge>
-              </div>
-              {profile?.x_username && <p className="mb-4 text-xs text-muted-foreground">Connected as @{profile.x_username}</p>}
-              {!profile?.x_username && <div className="mb-4" />}
-              <Button onClick={handleX} disabled={isLinkingX} className="w-full" variant="secondary">
-                {isLinkingX && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {profile?.x_connected ? "Disconnect X" : "Connect X"}
               </Button>
             </div>
           </CardContent>
@@ -298,7 +265,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium">Automatic post</p>
                 <p className="text-xs text-muted-foreground">
                   Auto-publish scheduled queue when due.
-                  {!canEnableAutoPost ? " Connect LinkedIn or X first." : ""}
+                  {!canEnableAutoPost ? " Connect LinkedIn first." : ""}
                 </p>
               </div>
               <Switch checked={canEnableAutoPost ? autoPostEnabled : false} onCheckedChange={setAutoPostEnabled} disabled={!canEnableAutoPost} />

@@ -73,10 +73,10 @@ export default function AdvancedAnalyticsPage() {
       />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card><CardHeader className="pb-2"><CardDescription>Total posts</CardDescription><CardTitle>{data.summary.totalPosts}</CardTitle></CardHeader></Card>
-        <Card><CardHeader className="pb-2"><CardDescription>Campaigns</CardDescription><CardTitle>{data.summary.campaignCount}</CardTitle></CardHeader></Card>
-        <Card><CardHeader className="pb-2"><CardDescription>Dead letter</CardDescription><CardTitle>{data.summary.deadLetterCount}</CardTitle></CardHeader></Card>
-        <Card><CardHeader className="pb-2"><CardDescription>Avg attempts</CardDescription><CardTitle>{data.summary.avgAttempts}</CardTitle></CardHeader></Card>
+        <Card><CardHeader className="pb-2"><CardDescription>Total posts</CardDescription><CardTitle className="metric-mono">{data.summary.totalPosts}</CardTitle></CardHeader></Card>
+        <Card><CardHeader className="pb-2"><CardDescription>Campaigns</CardDescription><CardTitle className="metric-mono">{data.summary.campaignCount}</CardTitle></CardHeader></Card>
+        <Card><CardHeader className="pb-2"><CardDescription>Dead letter</CardDescription><CardTitle className="metric-mono">{data.summary.deadLetterCount}</CardTitle></CardHeader></Card>
+        <Card><CardHeader className="pb-2"><CardDescription>Avg attempts</CardDescription><CardTitle className="metric-mono">{data.summary.avgAttempts}</CardTitle></CardHeader></Card>
       </section>
 
       <section className="grid gap-3 xl:grid-cols-2">

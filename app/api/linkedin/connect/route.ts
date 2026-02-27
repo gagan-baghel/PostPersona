@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { randomUUID } from "crypto"
 
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
+import { resolveLinkedInRedirectUri } from "@/lib/social/linkedin-oauth"
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
       typeof body.nextPath === "string" && body.nextPath.startsWith("/dashboard") ? body.nextPath : "/dashboard/generate"
 
     const clientId = process.env.LINKEDIN_CLIENT_ID
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin
     if (!clientId) {
       return NextResponse.json(
         { error: "LinkedIn is not configured. Missing LINKEDIN_CLIENT_ID." },
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/linkedin/callback`
+    const redirectUri = resolveLinkedInRedirectUri(request)
     const statePayload = Buffer.from(
       JSON.stringify({
         userId,
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       authUrl,
+      redirectUri,
       message: `Continue in browser to connect LinkedIn from ${appUrl}`,
     })
   } catch (error) {

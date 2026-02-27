@@ -4,8 +4,6 @@ import { PostGenerator } from "@/components/post-generator"
 import { usePersonas } from "@/hooks/use-personas"
 import { useAuth } from "@/hooks/use-auth"
 import { PersonaGridSkeleton } from "@/components/skeletons/persona-grid-skeleton"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/dashboard/empty-state"
 import { PageHeader } from "@/components/dashboard/page-header"
@@ -43,15 +41,7 @@ export default function GeneratePage() {
 
   return (
     <div className="space-y-3 p-2 sm:p-3 md:p-4">
-      <PageHeader
-        title="Studio"
-        description="Step 1/3: Generate draft. Step 2/3: Review. Step 3/3: Auto-publish."
-        rightSlot={
-          <Button asChild variant="outline" className="bg-transparent">
-            <Link href="/dashboard/review?scheduleWeek=1">Schedule Week</Link>
-          </Button>
-        }
-      />
+      <PageHeader title="Studio" description="Step 1/3: Generate draft. Step 2/3: Review. Step 3/3: Auto-publish." />
       <div className="flex flex-wrap gap-1.5">
         <Badge variant="secondary">1. Generate</Badge>
         <Badge variant="outline">2. Review</Badge>

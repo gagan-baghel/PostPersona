@@ -18,7 +18,10 @@ export default function HistoryPage() {
   const filtered = useMemo(() => {
     const lower = query.toLowerCase().trim()
     return posts
-      .filter((post) => !["review", "scheduled"].includes(post.workflow_status || "draft"))
+      .filter((post) => {
+        const status = post.workflow_status || "draft"
+        return status === "posted" && Boolean(post.posted_at)
+      })
       .filter((post) => {
       const matchText =
         post.topic.toLowerCase().includes(lower) ||
@@ -27,9 +30,7 @@ export default function HistoryPage() {
 
       const matchPlatform =
         platform === "all" ||
-        (platform === "linkedin" && post.posted_to_linkedin) ||
-        (platform === "x" && post.posted_to_x) ||
-        (platform === "drafts" && !post.posted_to_linkedin && !post.posted_to_x)
+        (platform === "linkedin" && post.posted_to_linkedin)
 
         return matchText && matchPlatform
       })
@@ -51,7 +52,7 @@ export default function HistoryPage() {
     <div className="space-y-4 p-1 sm:p-2 md:p-3">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Post History</h1>
-        <p className="mt-1 text-muted-foreground">Search, filter, and reuse your generated posts.</p>
+        <p className="mt-1 text-muted-foreground">Only successfully posted content appears here.</p>
       </div>
 
       <div className="grid gap-2 md:grid-cols-3">
@@ -60,11 +61,9 @@ export default function HistoryPage() {
           <Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" placeholder="Search topic, content, persona" />
         </div>
         <Tabs value={platform} onValueChange={setPlatform}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="linkedin">LinkedIn</TabsTrigger>
-            <TabsTrigger value="x">X</TabsTrigger>
-            <TabsTrigger value="drafts">Drafts</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>

@@ -3,7 +3,6 @@ import { NextResponse } from "next/server"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
 import { SavePostSchema } from "@/lib/validation/schemas"
-import { enforceXLimit, needsXLimit } from "@/lib/social/platform-limits"
 
 function mapPost(post: any, persona: any) {
   return {
@@ -59,21 +58,6 @@ export async function POST(request: Request) {
     }
 
     const data = validation.data
-    if (needsXLimit(data.targetPlatform)) {
-      const xLimit = enforceXLimit(data.content)
-      if (!xLimit.ok) {
-        return NextResponse.json(
-          {
-            error: `X post exceeds character limit (${xLimit.count}/${xLimit.limit}).`,
-            code: "X_CHAR_LIMIT_EXCEEDED",
-            maxChars: xLimit.limit,
-            currentChars: xLimit.count,
-          },
-          { status: 400 },
-        )
-      }
-    }
-
     const result = await convexMutation<any>("app:createPost", {
       userId,
       personaId: data.personaId,

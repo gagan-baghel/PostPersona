@@ -4,30 +4,6 @@ import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
 import { LinkedInPublishError, publishToLinkedIn } from "@/lib/social/linkedin-publish"
 import { ensureLinkedInAccessToken } from "@/lib/social/linkedin-token"
-import { X_POST_CHAR_LIMIT, countXCharacters } from "@/lib/social/platform-limits"
-
-async function postToX(profile: any, content: string) {
-  if (!profile?.x_connected || !profile?.x_access_token) {
-    return { ok: false as const, reason: "x_not_connected" }
-  }
-
-  const tweetText =
-    countXCharacters(content) > X_POST_CHAR_LIMIT
-      ? `${Array.from(content).slice(0, X_POST_CHAR_LIMIT - 1).join("")}…`
-      : content
-  const response = await fetch("https://api.x.com/2/tweets", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${profile.x_access_token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ text: tweetText }),
-  })
-
-  if (!response.ok) return { ok: false as const, reason: "x_failed" }
-  const data = await response.json()
-  return { ok: true as const, postId: data?.data?.id || `x_${Date.now()}` }
-}
 
 function sortQueue(posts: any[]) {
   return [...posts].sort((a, b) => {
@@ -73,51 +49,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, processed: 0, reason: lock?.error || "lock_failed" })
     }
 
-    const target = next.target_platform || "linkedin"
     let linkedinPostId: string | undefined
-    let xPostId: string | undefined
     let postedLinkedin = false
-    let postedX = false
 
     try {
-      if (target === "linkedin" || target === "both") {
-        const token = await ensureLinkedInAccessToken(userId, profile)
-        if (!token.ok || !token.accessToken || !profile?.linkedin_profile_id) {
-          throw new Error(token.warning || "linkedin_not_connected")
-        }
-
-        const li = await publishToLinkedIn({
-          accessToken: token.accessToken,
-          profileId: profile.linkedin_profile_id,
-          content: next.content,
-          imageUrl: next.image_url,
-        })
-        postedLinkedin = true
-        linkedinPostId = li.postId
+      const token = await ensureLinkedInAccessToken(userId, profile)
+      if (!token.ok || !token.accessToken || !profile?.linkedin_profile_id) {
+        throw new Error(token.warning || "linkedin_not_connected")
       }
 
-      if (target === "x" || target === "both") {
-        const x = await postToX(profile, next.content)
-        if (!x.ok && target === "x") {
-          throw new Error(x.reason)
-        }
-        if (x.ok) {
-          postedX = true
-          xPostId = x.postId
-        }
-      }
-
-      if (!postedLinkedin && !postedX) {
-        throw new Error("no_connected_targets")
-      }
+      const li = await publishToLinkedIn({
+        accessToken: token.accessToken,
+        profileId: profile.linkedin_profile_id,
+        content: next.content,
+        imageUrl: next.image_url,
+      })
+      postedLinkedin = true
+      linkedinPostId = li.postId
 
       const result = await convexMutation<any>("app:markScheduledPostPublished", {
         userId,
         postId: next._id,
         linkedinPostId,
-        xPostId,
         postedLinkedin,
-        postedX,
       })
 
       if (!result?.ok) {
@@ -155,4 +109,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
-

@@ -3,11 +3,10 @@ import { z } from "zod"
 
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation } from "@/lib/convex/client"
-import { enforceXLimit, needsXLimit } from "@/lib/social/platform-limits"
 
 const SingleScheduleSchema = z.object({
   personaId: z.string().min(1),
-  topic: z.string().min(3).max(500),
+  topic: z.string().trim().min(2).max(500),
   content: z.string().min(20),
   imageUrl: z.string().optional().nullable(),
   cloudinaryPublicId: z.string().optional().nullable(),
@@ -15,7 +14,7 @@ const SingleScheduleSchema = z.object({
   imagePreset: z.string().optional().nullable(),
   imagePrompt: z.string().optional().nullable(),
   aiModelVersion: z.string().optional().nullable(),
-  targetPlatform: z.enum(["linkedin", "x", "both"]).default("linkedin"),
+  targetPlatform: z.literal("linkedin").default("linkedin"),
 })
 
 export async function POST(request: Request) {
@@ -30,21 +29,6 @@ export async function POST(request: Request) {
     }
 
     const data = parsed.data
-    if (needsXLimit(data.targetPlatform)) {
-      const xLimit = enforceXLimit(data.content)
-      if (!xLimit.ok) {
-        return NextResponse.json(
-          {
-            error: `X post exceeds character limit (${xLimit.count}/${xLimit.limit}).`,
-            code: "X_CHAR_LIMIT_EXCEEDED",
-            maxChars: xLimit.limit,
-            currentChars: xLimit.count,
-          },
-          { status: 400 },
-        )
-      }
-    }
-
     const create = await convexMutation<any>("app:createPost", {
       userId,
       personaId: data.personaId,

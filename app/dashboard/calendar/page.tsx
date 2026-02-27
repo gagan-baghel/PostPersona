@@ -15,6 +15,7 @@ type CalendarPost = {
   topic: string
   workflow_status?: string
   target_platform?: string
+  delivery_status?: string
   scheduled_for?: number | null
   posted_at?: number | string | null
   created_at?: number | string
@@ -32,7 +33,11 @@ function toTimestamp(value: unknown): number | null {
 }
 
 function getEventTimestamp(post: CalendarPost): number | null {
-  return toTimestamp(post.scheduled_for) ?? toTimestamp(post.posted_at) ?? toTimestamp(post.created_at)
+  const status = post.workflow_status ?? "draft"
+  if (status === "posted") {
+    return toTimestamp(post.posted_at) ?? toTimestamp(post.scheduled_for) ?? toTimestamp(post.created_at)
+  }
+  return toTimestamp(post.scheduled_for) ?? toTimestamp(post.created_at) ?? toTimestamp(post.posted_at)
 }
 
 function toDateKeyLocal(date: Date): string {
@@ -40,6 +45,20 @@ function toDateKeyLocal(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const day = String(date.getDate()).padStart(2, "0")
   return `${year}-${month}-${day}`
+}
+
+function startOfTodayLocal(): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+function isVisibleInCalendar(post: CalendarPost, todayStart: number): boolean {
+  const status = post.workflow_status || "draft"
+  if (status === "posted") return true
+  if (status !== "scheduled") return false
+  const scheduledTs = toTimestamp(post.scheduled_for)
+  return typeof scheduledTs === "number" && scheduledTs >= todayStart
 }
 
 function statusBadgeVariant(status?: string): "default" | "secondary" | "outline" {
@@ -61,9 +80,9 @@ export default function CalendarPage() {
         const response = await fetch("/api/posts/calendar", { cache: "no-store" })
         const data = await response.json().catch(() => [])
         if (response.ok && Array.isArray(data)) {
+          const todayStart = startOfTodayLocal()
           const safe = data.filter((post: CalendarPost) => {
-            const status = post.workflow_status || "draft"
-            return status === "scheduled" || status === "posted"
+            return isVisibleInCalendar(post, todayStart)
           })
           setPosts(safe)
         }
@@ -76,9 +95,9 @@ export default function CalendarPage() {
   }, [])
 
   const postsByDay = useMemo(() => {
+    const todayStart = startOfTodayLocal()
     const visible = posts.filter((post) => {
-      const status = post.workflow_status || "draft"
-      return status === "scheduled" || status === "posted"
+      return isVisibleInCalendar(post, todayStart)
     })
 
     const map = new Map<string, CalendarPost[]>()
@@ -130,7 +149,7 @@ export default function CalendarPage() {
     <div className="space-y-3 p-1 sm:p-2 md:p-3">
       <PageHeader
         title="Calendar"
-        description="Only scheduled and posted items are shown."
+        description="Only posted and upcoming scheduled items are shown."
         rightSlot={<Badge variant="secondary">Items: {scheduledOrPostedCount}</Badge>}
       />
       <div className="grid gap-3 xl:grid-cols-4">
@@ -214,7 +233,7 @@ export default function CalendarPage() {
                     <div key={entry.id || `${selectedKey}-${entry.topic}-${index}`} className="rounded-lg border p-2.5">
                       <div className="mb-1 flex items-center gap-1.5">
                         <Badge variant={statusBadgeVariant(entry.workflow_status)}>{entry.workflow_status || "draft"}</Badge>
-                        <Badge variant="outline">{entry.target_platform || "linkedin"}</Badge>
+                        <Badge variant="outline">linkedin</Badge>
                       </div>
                       <p className="line-clamp-2 text-sm font-medium">{entry.topic}</p>
                       <p className="text-[11px] text-muted-foreground">{ts ? new Date(ts).toLocaleString() : "No timestamp"}</p>
