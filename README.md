@@ -1,124 +1,115 @@
-# PersonaPost (Next.js + Convex)
+# PersonaPost
 
-PersonaPost is a LinkedIn/X content automation workspace with approval-first publishing, queue orchestration, campaign planning, and reliability controls.
+<p align="center">
+  <img src="./public/personapost-logo.png" alt="PersonaPost Logo" width="320" />
+</p>
 
-## What It Does
+![PersonaPost App Screenshot](./public/appScreenshot.png)
 
-- Studio: generate one post with persona guidance and optional image generation.
-- Review Queue: approve/reject drafts, drag-reorder scheduled queue, reschedule, and delete.
-- Week Scheduler: generate 7 drafts into pending review (never auto-approved).
-- Calendar: shows only `scheduled` and `posted` items.
-- Auto Publisher: posts top scheduled item first (queue order), with retry/backoff and dead-letter protection.
-- Campaigns: define goal/audience/pillars/cadence and generate weekly campaign content.
-- Profile Analysis: connected-account LinkedIn post analytics with trend + scatter charts.
-- Advanced Analytics: delivery reliability and throughput metrics.
+PersonaPost is a LinkedIn-first content automation workspace built with Next.js + Convex. It helps you generate, review, schedule, and publish posts with an approval-first workflow.
 
-## Core Rules Enforced
+## Highlights
 
-- No post is published unless approved by user.
-- Pending review items are excluded from calendar.
-- Scheduled queue determines publish priority.
-- If required channels are disconnected, scheduling/publishing UI warns and blocks invalid actions.
-- Single-post Studio flow schedules directly (does not return to review).
+- AI-powered post generation using `GROK_API_KEY`
+- Approval-first review queue (no auto-publish without review)
+- Weekly planning and campaign-oriented content generation
+- Queue-aware scheduling and publishing reliability protections
+- LinkedIn OAuth integration and profile analytics
+- Cloudinary media support
+- Razorpay-based coin flows
 
-## Stack
+## Tech Stack
 
 - Next.js 16 (App Router)
 - React 19 + TypeScript
-- Convex (data + backend functions)
+- Convex (database + backend functions)
 - SWR
-- Groq-compatible API via `GROK_API_KEY` (default model `llama-3.3-70b`)
-- Optional Gemini image generation
-- LinkedIn + X OAuth
-- Cloudinary (media)
-- Razorpay (coins)
+- Cloudinary
+- LinkedIn OAuth
+- Razorpay
 
-## Local Setup
+## Project Structure
 
-1. Install deps:
+- `app/` - Next.js App Router pages and API routes
+- `components/` - UI components
+- `convex/` - Convex schema and functions
+- `lib/` - integrations, auth, AI, utilities
+- `public/` - static assets (logos, icons, screenshots)
+
+## Local Development
+
+1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-2. Initialize Convex (first time only):
-
-```bash
-npx convex dev
-```
-
-3. Run app + Convex together:
+2. Start Convex + Next.js:
 
 ```bash
 npm run dev
 ```
 
-## Environment
+3. Open:
 
-Create `.env.local` from `.env.example`.
+- App: [http://localhost:3000](http://localhost:3000)
 
-### Required for auth in production
+## Environment Variables
 
-- `SESSION_SECRET` must be set in production.
-- Missing `SESSION_SECRET` in production will break login/signup session creation.
+Copy `.env.example` to `.env.local` and fill values.
 
-### Convex
+### Required
+
+- `NEXT_PUBLIC_CONVEX_URL`
+- `CONVEX_ADMIN_KEY`
+- `SESSION_SECRET` (required in production)
+- `GROK_API_KEY`
+
+### Recommended / In Use
 
 - `CONVEX_DEPLOYMENT`
-- `NEXT_PUBLIC_CONVEX_URL`
 - `NEXT_PUBLIC_CONVEX_SITE_URL`
-- `CONVEX_ADMIN_KEY` (server-side admin calls)
+- `NEXT_PUBLIC_APP_URL`
+- `GROK_MODEL`
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `LINKEDIN_CLIENT_ID`
+- `LINKEDIN_CLIENT_SECRET`
+- `LINKEDIN_REDIRECT_URI`
+- `LINKEDIN_REQUEST_OFFLINE_ACCESS`
 
-### AI
+## Reliability Rules
 
-- `GROK_API_KEY` (required for post generation)
-- `GROK_MODEL` (optional override, defaults to `llama-3.3-70b`)
-- `GEMINI_API_KEY` (optional image generation)
-- `DEAPI_API_KEY` (optional image generation provider)
+- Posts are never published without user approval
+- Scheduled queue order determines publishing priority
+- Retry/backoff and dead-letter protections are built into publishing flow
+- Disconnected channel constraints are surfaced in scheduling/publishing flows
 
-### Social OAuth
+## Useful Scripts
 
-- LinkedIn: `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`
-- Optional refresh-token scope request: `LINKEDIN_REQUEST_OFFLINE_ACCESS=true`
-- X: `X_CLIENT_ID`, `X_CLIENT_SECRET`
-
-### Optional integrations
-
-- Razorpay keys
-- Cloudinary keys
-
-## Reliability Features
-
-- Publish lock (`publish_lock_until`) to avoid duplicate concurrent posting.
-- Idempotency key tracking per publish attempt.
-- Exponential retry/backoff via `publish_next_retry_at`.
-- Dead-letter transition after max attempts.
-- Replay dead-letter items back to scheduled queue.
-
-## Campaign Features
-
-- Campaign table with `goal`, `audience`, `pillars`, `cadence_per_week`, `kpi_target`.
-- Weekly campaign generator inserts 7 posts into review queue and links `campaign_id`.
-- Campaign-level status counters (review/scheduled/posted/dead-letter).
+- `npm run dev` - run Next.js + Convex concurrently
+- `npm run lint` - lint codebase
+- `npm run build` - production build
+- `npm run convex:dev` - run Convex dev server
+- `npm run convex:deploy` - deploy Convex functions
 
 ## Production Checklist
 
-Before deploy:
+Run before deploy:
 
 ```bash
 npm run lint
 npm run build
 ```
 
-Production env must include at minimum:
+Minimum production env:
 
 - `SESSION_SECRET`
-- Convex deployment + URL vars
+- `NEXT_PUBLIC_CONVEX_URL`
 - `CONVEX_ADMIN_KEY`
 - `GROK_API_KEY`
-- OAuth keys for channels you want to connect
-
-## Notes
-
-- LinkedIn profile analysis endpoint currently provides deep analytics for the connected account.
-- LinkedIn impression data can be estimated if API does not return impression counters for a post.
+- LinkedIn keys for LinkedIn features
+- Cloudinary and Razorpay keys for those feature paths
