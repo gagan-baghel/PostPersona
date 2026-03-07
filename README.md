@@ -1,16 +1,12 @@
 # PersonaPost
 
-<p align="center">
-  <img src="./public/personapost-logo.png" alt="PersonaPost Logo" width="320" />
-</p>
-
 ![PersonaPost App Screenshot](./public/appScreenshot.png)
 
 PersonaPost is a LinkedIn-first content automation workspace built with Next.js + Convex. It helps you generate, review, schedule, and publish posts with an approval-first workflow.
 
 ## Highlights
 
-- AI-powered post generation using `GROK_API_KEY`
+- AI-powered post generation using `OPENAI_API_KEY`
 - Approval-first review queue (no auto-publish without review)
 - Weekly planning and campaign-oriented content generation
 - Queue-aware scheduling and publishing reliability protections
