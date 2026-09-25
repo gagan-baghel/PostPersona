@@ -1,4 +1,4 @@
-import { createHmac } from "crypto"
+import { createHmac, timingSafeEqual } from "crypto"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
@@ -32,6 +32,30 @@ function signPayload(payload: string) {
   return createHmac("sha256", getSessionSecret()).update(payload).digest("base64url")
 }
 
+// Prefix keeps OAuth-state signatures from ever being valid as session-token signatures (and vice versa).
+const OAUTH_STATE_SIG_PREFIX = "oauth-state."
+
+export function signOAuthState(data: Record<string, unknown>): string {
+  const payload = base64UrlEncode(JSON.stringify(data))
+  return `${payload}.${signPayload(OAUTH_STATE_SIG_PREFIX + payload)}`
+}
+
+export function verifyOAuthState(state: string | null | undefined): Record<string, unknown> | null {
+  const [payload, signature, ...rest] = (state ?? "").split(".")
+  if (!payload || !signature || rest.length > 0) return null
+
+  const expected = Buffer.from(signPayload(OAUTH_STATE_SIG_PREFIX + payload))
+  const actual = Buffer.from(signature)
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null
+
+  try {
+    const data = JSON.parse(base64UrlDecode(payload))
+    return data && typeof data === "object" && !Array.isArray(data) ? data : null
+  } catch {
+    return null
+  }
+}
+
 export function createSessionToken(userId: string): string {
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS
   const payload = `${userId}.${exp}`
@@ -53,8 +77,9 @@ export function verifySessionToken(token: string | undefined | null): string | n
     return null
   }
 
-  const expectedSig = signPayload(payload)
-  if (expectedSig !== signature) return null
+  const expectedSig = Buffer.from(signPayload(payload))
+  const actualSig = Buffer.from(signature)
+  if (actualSig.length !== expectedSig.length || !timingSafeEqual(actualSig, expectedSig)) return null
 
   const [userId, expRaw] = payload.split(".")
   const exp = Number(expRaw)

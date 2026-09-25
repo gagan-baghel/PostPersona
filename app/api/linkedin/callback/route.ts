@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server"
 
-import { clearSessionCookie, getSessionUserIdFromRequest } from "@/lib/auth/session"
+import {
+  clearSessionCookie,
+  getCookieValueFromHeader,
+  getSessionUserIdFromRequest,
+  verifyOAuthState,
+} from "@/lib/auth/session"
 import { convexMutation } from "@/lib/convex/client"
-import { resolveLinkedInRedirectUri } from "@/lib/social/linkedin-oauth"
+import {
+  LINKEDIN_OAUTH_NONCE_COOKIE,
+  LINKEDIN_OAUTH_STATE_MAX_AGE_MS,
+  resolveLinkedInRedirectUri,
+  setLinkedInOAuthNonceCookie,
+} from "@/lib/social/linkedin-oauth"
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -10,7 +20,12 @@ export async function GET(request: Request) {
   const state = url.searchParams.get("state")
   const error = url.searchParams.get("error")
   let nextPath = "/dashboard/generate"
-  const redirectTo = (path: string) => NextResponse.redirect(new URL(path, request.url))
+  // Every exit ends the flow, so the one-time nonce is always cleared.
+  const redirectTo = (path: string) => {
+    const response = NextResponse.redirect(new URL(path, request.url))
+    setLinkedInOAuthNonceCookie(response, "")
+    return response
+  }
   const redirectToLoginAndLogout = () => {
     const response = redirectTo("/auth/login?reason=session_mismatch")
     clearSessionCookie(response)
@@ -38,16 +53,29 @@ export async function GET(request: Request) {
       return redirectTo("/auth/login")
     }
 
-    const stateData = JSON.parse(Buffer.from(state, "base64url").toString("utf8")) as {
+    const stateData = verifyOAuthState(state) as {
       userId?: string
+      ts?: number
       nextPath?: string
+      nonce?: string
+    } | null
+    const nonceCookie = getCookieValueFromHeader(request.headers.get("cookie"), LINKEDIN_OAUTH_NONCE_COOKIE)
+    if (
+      !stateData ||
+      typeof stateData.ts !== "number" ||
+      Date.now() - stateData.ts > LINKEDIN_OAUTH_STATE_MAX_AGE_MS ||
+      !nonceCookie ||
+      stateData.nonce !== nonceCookie
+    ) {
+      console.error("[LinkedIn Callback] Rejected state: bad signature, expired, or nonce mismatch")
+      return redirectTo(`${nextPath}?linkedin_error=invalid_state`)
     }
+
     const stateUserId = stateData.userId
     if (typeof stateData.nextPath === "string" && stateData.nextPath.startsWith("/dashboard")) {
       nextPath = stateData.nextPath
     }
-    
-    console.log(`[LinkedIn Callback] State data:`, stateData)
+
 
     if (stateUserId !== userId) {
       console.error(`[LinkedIn Callback] State User ID mismatch! Expected ${userId}, got ${stateUserId}`)
