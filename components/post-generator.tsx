@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { useCoins } from "@/hooks/use-coins"
+import { useProfile } from "@/hooks/use-profile"
 import { toast } from "sonner"
 import { handleDownloadImage } from "@/utils/download-image"
 import { CheckCircle2, Copy, Heart, ImagePlus, Loader2, MessageCircle, Repeat2, Save, Send, Wand2 } from "lucide-react"
@@ -84,15 +85,19 @@ function LinkedInPreview({
 export function PostGenerator({
   avatars,
   selectedAvatar,
+  initialTopic = "",
 }: {
   avatars: Persona[]
   selectedAvatar: Persona | null
+  initialTopic?: string
 }) {
   const router = useRouter()
   const { coins, mutateCoins } = useCoins()
+  const { profile } = useProfile()
+  const freeDrafts = Boolean(profile?.ai_engine_free)
 
   const [personaId, setPersonaId] = useState(selectedAvatar?.id || avatars[0]?.id || "")
-  const [topic, setTopic] = useState("")
+  const [topic, setTopic] = useState(initialTopic)
   const [generatedPost, setGeneratedPost] = useState("")
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
 
@@ -119,7 +124,7 @@ export function PostGenerator({
       cloudinarySecureUrl: generatedImageUrl,
       imagePrompt: imagePrompt || null,
       imagePreset: generatedImageUrl ? imagePreset : null,
-      aiModelVersion: generatedModel || "llama-3.3-70b",
+      aiModelVersion: generatedModel || "unknown",
       targetPlatform: "linkedin",
     }),
     [
@@ -263,9 +268,9 @@ export function PostGenerator({
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button className="w-full sm:w-auto" onClick={handleGeneratePost} disabled={isGeneratingPost || !topic.trim() || !personaId || coins < 3}>
+            <Button className="w-full sm:w-auto" onClick={handleGeneratePost} disabled={isGeneratingPost || !topic.trim() || !personaId || (!freeDrafts && coins < 3)}>
               {isGeneratingPost && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {generatedPost ? "Regenerate (3 coins)" : "Generate Draft (3 coins)"}
+              {generatedPost ? "Regenerate" : "Generate Draft"} {freeDrafts ? "(free)" : "(3 coins)"}
             </Button>
             <Button variant="outline" className="w-full sm:w-auto bg-transparent" onClick={() => setShowImageTools((v) => !v)}>
               <ImagePlus className="mr-2 h-4 w-4" />
@@ -347,7 +352,7 @@ export function PostGenerator({
                 </Button>
               )}
               <ScrollArea className="h-24 rounded border p-2">
-                <p className="metric-mono text-xs text-muted-foreground">Model: {generatedModel || "llama-3.3-70b"}</p>
+                <p className="metric-mono text-xs text-muted-foreground">Model: {generatedModel || "unknown"}</p>
               </ScrollArea>
             </>
           )}

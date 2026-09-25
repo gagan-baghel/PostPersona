@@ -2,9 +2,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { buildWeeklyStructuredPrompt } from "@/lib/ai/prompt-builder"
-import { generateWithGrok } from "@/lib/ai/grok"
+import { AIOutputFormatError, creditCost, generateText, mapAIError, parseJsonLoose, resolveEngine } from "@/lib/ai/llm"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { CREDIT_COSTS } from "@/lib/pricing"
 
 const ScheduleWeekSchema = z.object({
   personaId: z.string().min(1, "Persona ID is required"),
@@ -23,134 +24,6 @@ const WeeklyOutputSchema = z.object({
     )
     .length(7),
 })
-
-class AIOutputFormatError extends Error {
-  constructor(message = "AI output format error") {
-    super(message)
-    this.name = "AIOutputFormatError"
-  }
-}
-
-function extractFirstJsonObject(raw: string) {
-  const start = raw.indexOf("{")
-  if (start < 0) return null
-  let depth = 0
-  let inString = false
-  let escaped = false
-
-  for (let i = start; i < raw.length; i++) {
-    const ch = raw[i]
-    if (inString) {
-      if (escaped) {
-        escaped = false
-      } else if (ch === "\\") {
-        escaped = true
-      } else if (ch === "\"") {
-        inString = false
-      }
-      continue
-    }
-    if (ch === "\"") {
-      inString = true
-      continue
-    }
-    if (ch === "{") depth++
-    if (ch === "}") {
-      depth--
-      if (depth === 0) return raw.slice(start, i + 1)
-    }
-  }
-  return null
-}
-
-function parseWeeklyOutput(raw: string) {
-  const tryJson = (value: string) => {
-    const parsed = JSON.parse(value)
-    const validated = WeeklyOutputSchema.safeParse(parsed)
-    if (!validated.success) throw new Error("Invalid weekly output schema")
-    return validated.data
-  }
-
-  try {
-    return tryJson(raw)
-  } catch {
-    const fenced = raw.match(/```json\n([\s\S]*?)\n```/)?.[1]
-    if (fenced) {
-      try {
-        return tryJson(fenced)
-      } catch {
-        // Continue to object extraction.
-      }
-    }
-
-    const objectCandidate = extractFirstJsonObject(raw)
-    if (!objectCandidate) throw new AIOutputFormatError("AI generation malformed")
-    try {
-      return tryJson(objectCandidate)
-    } catch {
-      throw new AIOutputFormatError("AI generation malformed")
-    }
-  }
-}
-
-function mapGenerateError(error: unknown): { status: number; body: Record<string, unknown> } {
-  const status = typeof (error as any)?.status === "number" ? (error as any).status : undefined
-  const message = error instanceof Error ? error.message : "Unknown error"
-  const lower = message.toLowerCase()
-
-  if (status === 429 || lower.includes("rate limit")) {
-    return {
-      status: 429,
-      body: {
-        error: "Model rate limit reached. Please retry shortly.",
-        code: "MODEL_RATE_LIMIT",
-        retryAfterSeconds: 20,
-      },
-    }
-  }
-
-  if (status === 401 || status === 403 || lower.includes("invalid api key")) {
-    return {
-      status: 503,
-      body: {
-        error: "AI provider authentication failed. Check GROK_API_KEY.",
-        code: "PROVIDER_AUTH_FAILED",
-      },
-    }
-  }
-
-  if (lower.includes("missing grok_api_key")) {
-    return {
-      status: 503,
-      body: { error: "Missing GROK_API_KEY in environment.", code: "MISSING_GROK_API_KEY" },
-    }
-  }
-
-  if (lower.includes("decommissioned") || lower.includes("no longer supported")) {
-    return {
-      status: 503,
-      body: {
-        error: "Configured AI model is no longer supported. Update GROK_MODEL.",
-        code: "MODEL_DEPRECATED",
-      },
-    }
-  }
-
-  if (error instanceof AIOutputFormatError || lower.includes("malformed")) {
-    return {
-      status: 502,
-      body: {
-        error: "AI returned an invalid response format. Please retry.",
-        code: "INVALID_AI_OUTPUT",
-      },
-    }
-  }
-
-  return {
-    status: 500,
-    body: { error: "Internal Server Error", code: "INTERNAL_ERROR" },
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -172,7 +45,8 @@ export async function POST(request: Request) {
     if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 })
     if (!persona) return NextResponse.json({ error: "Persona not found" }, { status: 404 })
 
-    const requiredCoins = 21
+    const engine = resolveEngine(profile.ai_provider)
+    const requiredCoins = creditCost(engine, CREDIT_COSTS.week)
     if ((profile.coins ?? 0) < requiredCoins) {
       return NextResponse.json(
         { error: `Insufficient coins. Weekly scheduling requires ${requiredCoins} coins.` },
@@ -181,14 +55,15 @@ export async function POST(request: Request) {
     }
 
     const messages = buildWeeklyStructuredPrompt(persona, topic, targetPlatform)
-    const generation = await generateWithGrok({
+    const generation = await generateText({
       messages,
       temperature: 0.4,
       maxTokens: 1900,
+      engine,
     })
-    const resultRaw = generation.text
-
-    const parsed = parseWeeklyOutput(resultRaw)
+    const validated = WeeklyOutputSchema.safeParse(parseJsonLoose(generation.text))
+    if (!validated.success) throw new AIOutputFormatError("AI generation malformed")
+    const parsed = validated.data
     const createdPostIds: string[] = []
 
     for (let i = 0; i < parsed.posts.length; i++) {
@@ -211,12 +86,14 @@ export async function POST(request: Request) {
       createdPostIds.push(result.postId)
     }
 
-    const deduction = await convexMutation<any>("app:addCoins", {
-      userId,
-      amount: -requiredCoins,
-      type: "post_generation",
-      description: `Generated 7 review posts as ${persona.name}`,
-    })
+    const deduction = requiredCoins
+      ? await convexMutation<any>("app:addCoins", {
+          userId,
+          amount: -requiredCoins,
+          type: "post_generation",
+          description: `Generated 7 review posts as ${persona.name}`,
+        })
+      : { ok: true, newBalance: profile.coins }
 
     if (!deduction?.ok) {
       for (const postId of createdPostIds) {
@@ -233,7 +110,7 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("[Schedule Week API] Error:", error)
-    const mapped = mapGenerateError(error)
+    const mapped = mapAIError(error)
     return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }

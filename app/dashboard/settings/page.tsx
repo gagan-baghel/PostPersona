@@ -14,7 +14,8 @@ import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
 import { useProfile } from "@/hooks/use-profile"
 import { connectLinkedIn, deleteAccount, disconnectLinkedIn, updateProfile } from "@/lib/mutations"
-import { Linkedin, Loader2, Trash2, UserRound } from "lucide-react"
+import { Cpu, Linkedin, Loader2, ShieldCheck, Trash2, UserRound } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { PageHeader } from "@/components/dashboard/page-header"
 import {
   AlertDialog,
@@ -51,6 +52,8 @@ export default function SettingsPage() {
   const [isSavingPrefs, setIsSavingPrefs] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLinkingLinkedIn, setIsLinkingLinkedIn] = useState(false)
+  const [savingEngine, setSavingEngine] = useState<string | null>(null)
+  const [testingEngine, setTestingEngine] = useState<string | null>(null)
 
   useEffect(() => {
     if (!profile) return
@@ -136,6 +139,33 @@ export default function SettingsPage() {
     window.location.href = result.authUrl
   }
 
+  const handleSelectEngine = async (engineId: string) => {
+    if (!user) return
+    setSavingEngine(engineId)
+    const result = await updateProfile(user.id, { ai_provider: engineId })
+    if (result.success) toast.success("AI engine updated")
+    else toast.error(result.error || "Failed to update AI engine")
+    setSavingEngine(null)
+  }
+
+  const handleTestEngine = async (engineId: string) => {
+    setTestingEngine(engineId)
+    try {
+      const response = await fetch("/api/ai/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engine: engineId }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (data.ok) toast.success(`Connected (${data.model}, ${(data.ms / 1000).toFixed(1)}s)`)
+      else toast.error(data.error || "Connection test failed")
+    } catch {
+      toast.error("Connection test failed")
+    } finally {
+      setTestingEngine(null)
+    }
+  }
+
   const handleDeleteAccount = async () => {
     setIsDeleting(true)
     const result = await deleteAccount()
@@ -162,9 +192,101 @@ export default function SettingsPage() {
     <div className="space-y-3 p-1 sm:p-2 md:p-3">
       <PageHeader
         title="Settings"
-        description="Manage account profile, channels, and automation defaults."
+        description="Connections, AI engine, profile, and automation defaults."
         rightSlot={<Badge variant="secondary">Channels: {connectionSummary}/1</Badge>}
       />
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        <Card id="linkedin" className="scroll-mt-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Linkedin className="h-5 w-5 text-[#0A66C2]" />LinkedIn</CardTitle>
+            <CardDescription>Publishing, scheduling, and post analytics.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div className="flex min-w-0 items-center gap-2 font-medium">
+                {profile?.linkedin_profile_image_url ? (
+                  <img
+                    src={profile.linkedin_profile_image_url}
+                    alt="LinkedIn profile"
+                    className="h-8 w-8 rounded-full border object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <Linkedin className="h-5 w-5 text-[#0A66C2]" />
+                )}
+                <span className="truncate">{profile?.linkedin_connected ? "Your LinkedIn account" : "No account connected"}</span>
+              </div>
+              <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>{profile?.linkedin_connected ? "Connected" : "Not connected"}</Badge>
+            </div>
+            {profile?.linkedin_token_warning ? (
+              <p className={`text-xs ${profile.linkedin_needs_reconnect ? "text-destructive" : "text-amber-300"}`}>
+                {profile.linkedin_token_warning}
+              </p>
+            ) : null}
+            <div className="flex gap-2 rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3 text-xs text-muted-foreground">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
+              <p>
+                You sign in on LinkedIn&apos;s own page with your email and password. PersonaPost never sees or stores your
+                password; it gets a revocable token that can only post for you and read your posts&apos; stats.
+              </p>
+            </div>
+            <Button onClick={handleLinkedIn} disabled={isLinkingLinkedIn} className="w-full" variant={profile?.linkedin_connected ? "outline" : "default"}>
+              {isLinkingLinkedIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {profile?.linkedin_connected ? "Disconnect LinkedIn" : "Sign in with LinkedIn"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card id="ai" className="scroll-mt-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Cpu className="h-5 w-5 text-primary" />AI Engine</CardTitle>
+            <CardDescription>
+              Use the Claude or ChatGPT subscription you already pay for. Local engines are free here; they run the CLI on
+              this machine, so log in once with <code className="metric-mono">claude</code> or <code className="metric-mono">codex login</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(profile?.ai_engines ?? []).map((engine) => {
+              const active = profile?.ai_engine === engine.id
+              return (
+                <div
+                  key={engine.id}
+                  className={cn("rounded-lg border p-3", active ? "border-primary/50 bg-primary/10" : engine.available ? "" : "opacity-60")}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        {engine.label}
+                        {engine.local ? <Badge variant="outline" className="text-[10px]">Free</Badge> : null}
+                        {active ? <Badge className="text-[10px]">Active</Badge> : null}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{engine.detail}</p>
+                    </div>
+                    <span className={cn("shrink-0 text-xs", engine.available ? "text-emerald-300" : "text-muted-foreground")}>
+                      {engine.available ? "Detected" : engine.local ? "Not installed" : "No key"}
+                    </span>
+                  </div>
+                  {engine.available ? (
+                    <div className="mt-2 flex gap-2">
+                      {!active ? (
+                        <Button size="sm" className="h-7 text-xs" onClick={() => handleSelectEngine(engine.id)} disabled={savingEngine !== null}>
+                          {savingEngine === engine.id && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                          Use {engine.label}
+                        </Button>
+                      ) : null}
+                      <Button size="sm" variant="outline" className="h-7 bg-transparent text-xs" onClick={() => handleTestEngine(engine.id)} disabled={testingEngine !== null}>
+                        {testingEngine === engine.id && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                        Test connection
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2">
@@ -203,49 +325,13 @@ export default function SettingsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Social Channels</CardTitle>
-            <CardDescription>Connect LinkedIn.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-1">
-            <div className="rounded-lg border p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 font-medium">
-                  {profile?.linkedin_profile_image_url ? (
-                    <img
-                      src={profile.linkedin_profile_image_url}
-                      alt="LinkedIn profile"
-                      className="h-6 w-6 rounded-full border object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <Linkedin className="h-4 w-4 text-[#0A66C2]" />
-                  )}
-                  LinkedIn
-                </div>
-                <Badge variant={profile?.linkedin_connected ? "default" : "secondary"}>{profile?.linkedin_connected ? "Connected" : "Not connected"}</Badge>
-              </div>
-              {profile?.linkedin_token_warning ? (
-                <p className={`mb-3 text-xs ${profile.linkedin_needs_reconnect ? "text-destructive" : "text-amber-300"}`}>
-                  {profile.linkedin_token_warning}
-                </p>
-              ) : null}
-              <Button onClick={handleLinkedIn} disabled={isLinkingLinkedIn} className="w-full">
-                {isLinkingLinkedIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {profile?.linkedin_connected ? "Disconnect LinkedIn" : "Connect LinkedIn"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Persona + Scheduling Defaults</CardTitle>
-            <CardDescription>Default visibility and weekday times.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
+      <Card id="schedule" className="scroll-mt-4">
+        <CardHeader>
+          <CardTitle>Automation + Scheduling</CardTitle>
+          <CardDescription>Auto-publish, posting times, and persona visibility.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-3">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-medium">Public by default</p>
@@ -270,7 +356,9 @@ export default function SettingsPage() {
               </div>
               <Switch checked={canEnableAutoPost ? autoPostEnabled : false} onCheckedChange={setAutoPostEnabled} disabled={!canEnableAutoPost} />
             </div>
+          </div>
 
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <div className="space-y-2">
               <Label htmlFor="timezone">Timezone</Label>
               <Input id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="UTC" />
@@ -278,7 +366,7 @@ export default function SettingsPage() {
 
             {(["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((day) => (
               <div key={day} className="space-y-2">
-                <Label htmlFor={`schedule-${day}`}>Default {day.slice(0, 1).toUpperCase() + day.slice(1)} time</Label>
+                <Label htmlFor={`schedule-${day}`}>{day.slice(0, 1).toUpperCase() + day.slice(1)}</Label>
                 <Input
                   id={`schedule-${day}`}
                   type="time"
@@ -287,13 +375,13 @@ export default function SettingsPage() {
                 />
               </div>
             ))}
-            <Button onClick={handleSavePrefs} disabled={isSavingPrefs} className="w-full">
-              {isSavingPrefs && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save defaults
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <Button onClick={handleSavePrefs} disabled={isSavingPrefs} className="w-full sm:w-auto">
+            {isSavingPrefs && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save automation settings
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="border-destructive/30">
         <CardHeader>

@@ -2,9 +2,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { buildWeeklyStructuredPrompt } from "@/lib/ai/prompt-builder"
-import { generateWithGrok } from "@/lib/ai/grok"
+import { AIOutputFormatError, creditCost, generateText, mapAIError, parseJsonLoose, resolveEngine } from "@/lib/ai/llm"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { CREDIT_COSTS } from "@/lib/pricing"
 
 const GenerateCampaignWeekSchema = z.object({
   personaId: z.string().optional(),
@@ -21,58 +22,6 @@ const WeeklyOutputSchema = z.object({
     )
     .length(7),
 })
-
-function extractFirstJsonObject(raw: string) {
-  const start = raw.indexOf("{")
-  if (start < 0) return null
-  let depth = 0
-  let inString = false
-  let escaped = false
-  for (let i = start; i < raw.length; i++) {
-    const ch = raw[i]
-    if (inString) {
-      if (escaped) escaped = false
-      else if (ch === "\\") escaped = true
-      else if (ch === "\"") inString = false
-      continue
-    }
-    if (ch === "\"") {
-      inString = true
-      continue
-    }
-    if (ch === "{") depth++
-    if (ch === "}") {
-      depth--
-      if (depth === 0) return raw.slice(start, i + 1)
-    }
-  }
-  return null
-}
-
-function parseWeeklyOutput(raw: string) {
-  const parse = (value: string) => {
-    const json = JSON.parse(value)
-    const validated = WeeklyOutputSchema.safeParse(json)
-    if (!validated.success) throw new Error("Invalid schema")
-    return validated.data
-  }
-
-  try {
-    return parse(raw)
-  } catch {
-    const fenced = raw.match(/```json\n([\s\S]*?)\n```/)?.[1]
-    if (fenced) {
-      try {
-        return parse(fenced)
-      } catch {
-        // fallthrough
-      }
-    }
-    const objectCandidate = extractFirstJsonObject(raw)
-    if (!objectCandidate) throw new Error("Malformed model output")
-    return parse(objectCandidate)
-  }
-}
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -102,7 +51,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const persona = await convexQuery<any>("app:getPersonaById", { personaId, userId })
     if (!persona) return NextResponse.json({ error: "Persona not found" }, { status: 404 })
 
-    const requiredCoins = 21
+    const engine = resolveEngine(profile.ai_provider)
+    const requiredCoins = creditCost(engine, CREDIT_COSTS.week)
     if ((profile.coins ?? 0) < requiredCoins) {
       return NextResponse.json(
         { error: `Insufficient coins. Campaign weekly generation requires ${requiredCoins} coins.` },
@@ -122,12 +72,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .join(" | ")
 
     const messages = buildWeeklyStructuredPrompt(persona, topic, targetPlatform)
-    const generation = await generateWithGrok({
+    const generation = await generateText({
       messages,
       temperature: 0.35,
       maxTokens: 1900,
+      engine,
     })
-    const parsedPosts = parseWeeklyOutput(generation.text)
+    const validated = WeeklyOutputSchema.safeParse(parseJsonLoose(generation.text))
+    if (!validated.success) throw new AIOutputFormatError("AI generation malformed")
+    const parsedPosts = validated.data
 
     const createdPostIds: string[] = []
     for (let i = 0; i < parsedPosts.posts.length; i++) {
@@ -146,12 +99,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       createdPostIds.push(create.postId)
     }
 
-    const deduction = await convexMutation<any>("app:addCoins", {
-      userId,
-      amount: -requiredCoins,
-      type: "post_generation",
-      description: `Campaign weekly batch for ${campaign.name}`,
-    })
+    const deduction = requiredCoins
+      ? await convexMutation<any>("app:addCoins", {
+          userId,
+          amount: -requiredCoins,
+          type: "post_generation",
+          description: `Campaign weekly batch for ${campaign.name}`,
+        })
+      : { ok: true, newBalance: profile.coins }
 
     if (!deduction?.ok) {
       for (const postId of createdPostIds) {
@@ -168,7 +123,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     })
   } catch (error) {
     console.error("[Campaign Generate Week] Error:", error)
-    return NextResponse.json({ error: "Failed to generate campaign week" }, { status: 500 })
+    const mapped = mapAIError(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 

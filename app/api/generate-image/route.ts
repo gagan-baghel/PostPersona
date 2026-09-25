@@ -5,6 +5,7 @@ import { uploadImage } from "@/lib/cloudinary"
 import { ImagePromptSchema } from "@/lib/validation/schemas"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
+import { CREDIT_COSTS } from "@/lib/pricing"
 
 export async function POST(request: Request) {
   try {
@@ -27,9 +28,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 })
     }
 
-    if (profile.coins < 5) {
+    if (profile.coins < CREDIT_COSTS.image) {
       return NextResponse.json(
-        { error: "Insufficient coins (5 required).", required: 5, current: profile.coins },
+        { error: `Insufficient coins (${CREDIT_COSTS.image} required).`, required: CREDIT_COSTS.image, current: profile.coins },
         { status: 402 },
       )
     }
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
 
     const deduction = await convexMutation<any>("app:addCoins", {
       userId,
-      amount: -5,
+      amount: -CREDIT_COSTS.image,
       type: "image_generation",
       description: `Generated ${imagePreset} image`,
     })

@@ -1,18 +1,34 @@
 # PersonaPost
 
-![PersonaPost App Screenshot](./public/appScreenshot.png)
+![PersonaPost Command Center](./public/marketing/command-center.webp)
 
-PersonaPost is a LinkedIn-first content automation workspace built with Next.js + Convex. It helps you generate, review, schedule, and publish posts with an approval-first workflow.
+PersonaPost reworks your whole LinkedIn from one place: headline, About, posts, comments and connection notes, plus what worked. It writes in your voice, leaves a `[bracketed gap]` instead of inventing facts, and never publishes a post you haven't approved.
 
 ## Highlights
 
-- AI-powered post generation using `OPENAI_API_KEY`
-- Approval-first review queue (no auto-publish without review)
-- Weekly planning and campaign-oriented content generation
-- Queue-aware scheduling and publishing reliability protections
-- LinkedIn OAuth integration and profile analytics
-- Cloudinary media support
-- Razorpay-based coin flows
+- **Studio**: posts drafted from rough notes in your persona's voice; plan a whole week at once
+- **Growth Toolkit**: headline, About, post ideas, hooks, comments and connection notes
+- **Review queue + calendar**: approval-first, drag to reorder, auto-publish at your times
+- **Profile analysis**: likes, comments, reposts, best day and hour from LinkedIn
+- **Bring your own AI**: run drafts on your Claude Code or Codex subscription (see below)
+- LinkedIn via official OAuth only (no passwords, no scraping, no auto-engagement)
+- Cloudinary images, Razorpay credit packs
+
+## AI engines
+
+Pick one per account under **Settings → AI Engine**, with a **Test connection** button.
+
+| Engine | Needs | Credits |
+|---|---|---|
+| Claude Code | `claude` CLI installed and logged in on the server machine | free |
+| Codex | `codex` CLI installed and `codex login` on the server machine | free |
+| Groq API | `GROK_API_KEY` | charged |
+
+Local engines are spawned with every tool disabled (`claude -p --tools ""`, `codex exec -s read-only`), and `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` are stripped from their environment so they bill your subscription, not an API key. They only work when PersonaPost runs on your own machine, and each person should use their own login: don't expose your personal subscription to other users of a hosted instance.
+
+## Connecting LinkedIn
+
+"Sign in with LinkedIn" uses LinkedIn's OAuth: you log in on LinkedIn's page and PersonaPost gets a revocable token (`w_member_social`, profile, email). PersonaPost never asks for or stores a LinkedIn password; password-based automation violates LinkedIn's User Agreement and gets accounts restricted. LinkedIn's API doesn't allow apps to edit your headline or About, so the Toolkit gives you options to paste.
 
 ## Tech Stack
 
@@ -59,7 +75,8 @@ Copy `.env.example` to `.env.local` and fill values.
 - `NEXT_PUBLIC_CONVEX_URL`
 - `CONVEX_ADMIN_KEY`
 - `SESSION_SECRET` (required in production)
-- `GROK_API_KEY`
+- An AI engine: the `claude` or `codex` CLI on the server machine, or `GROK_API_KEY`
+- `NEXT_PUBLIC_APP_URL` in production, so LinkedIn/Slack link previews get absolute image URLs
 
 ### Recommended / In Use
 
@@ -106,6 +123,6 @@ Minimum production env:
 - `SESSION_SECRET`
 - `NEXT_PUBLIC_CONVEX_URL`
 - `CONVEX_ADMIN_KEY`
-- `GROK_API_KEY`
+- `GROK_API_KEY` (hosted deploys have no local CLI)
 - LinkedIn keys for LinkedIn features
 - Cloudinary and Razorpay keys for those feature paths

@@ -1,5 +1,7 @@
 'use client'
 
+import { Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { PostGenerator } from "@/components/post-generator"
 import { usePersonas } from "@/hooks/use-personas"
 import { useAuth } from "@/hooks/use-auth"
@@ -9,7 +11,8 @@ import { EmptyState } from "@/components/dashboard/empty-state"
 import { PageHeader } from "@/components/dashboard/page-header"
 import { Sparkles } from "lucide-react"
 
-export default function GeneratePage() {
+function GenerateContent() {
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const { personas, isLoading } = usePersonas()
 
@@ -47,7 +50,15 @@ export default function GeneratePage() {
         <Badge variant="outline">2. Review</Badge>
         <Badge variant="outline">3. Publish</Badge>
       </div>
-      <PostGenerator avatars={userPersonas} selectedAvatar={null} />
+      <PostGenerator avatars={userPersonas} selectedAvatar={null} initialTopic={searchParams.get("topic") ?? ""} />
     </div>
+  )
+}
+
+export default function GeneratePage() {
+  return (
+    <Suspense>
+      <GenerateContent />
+    </Suspense>
   )
 }

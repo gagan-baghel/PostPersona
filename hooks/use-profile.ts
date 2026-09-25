@@ -21,6 +21,10 @@ interface Profile {
   linkedin_refresh_token_expires_at?: number | null
   linkedin_token_warning?: string | null
   linkedin_needs_reconnect?: boolean
+  ai_provider?: string | null
+  ai_engine?: string | null
+  ai_engine_free?: boolean
+  ai_engines?: { id: string; label: string; detail: string; local: boolean; available: boolean }[]
   created_at: number | string
   updated_at: number | string
 }
