@@ -1,201 +1,86 @@
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+
+import { MarketingShell, container, inkButton } from "@/components/marketing"
 import { getSessionUserIdFromServerCookies } from "@/lib/auth/session"
-import { BrandLogo } from "@/components/brand-logo"
+import { COIN_PACKAGES, CREDIT_COSTS, SIGNUP_COINS } from "@/lib/pricing"
+
+const costs = [
+  { label: "A post draft", credits: CREDIT_COSTS.post },
+  { label: "A headline, About, comment or connection-note run", credits: CREDIT_COSTS.tool },
+  { label: "An image for a post", credits: CREDIT_COSTS.image },
+  { label: "A full week of post drafts (seven)", credits: CREDIT_COSTS.week },
+  { label: "Publishing, scheduling, analytics", credits: 0 },
+]
 
 export default async function PricingPage() {
-  const user = await getSessionUserIdFromServerCookies()
-
-  const plans = [
-    {
-      name: "Free",
-      price: "$0",
-      period: "forever",
-      description: "Perfect for getting started with AI-powered content creation",
-      features: [
-        "1 AI Persona",
-        "10 Posts per month",
-        "Basic personality customization",
-        "Post history",
-        "Community support",
-      ],
-      cta: user ? "Current Plan" : "Get Started",
-      href: user ? "/dashboard" : "/auth/sign-up",
-      popular: false,
-    },
-    {
-      name: "Pro",
-      price: "$19",
-      period: "per month",
-      description: "For professionals who need unlimited content generation",
-      features: [
-        "Unlimited AI Personas",
-        "Unlimited Posts",
-        "Advanced personality & style options",
-        "Post analytics",
-        "Priority support",
-        "Export to LinkedIn",
-      ],
-      cta: "Upgrade to Pro",
-      href: user ? "/dashboard" : "/auth/sign-up",
-      popular: true,
-    },
-    {
-      name: "Team",
-      price: "$49",
-      period: "per month",
-      description: "For teams managing multiple brands and voices",
-      features: [
-        "Everything in Pro",
-        "Up to 5 team members",
-        "Shared persona library",
-        "Team analytics dashboard",
-        "Custom branding",
-        "Dedicated account manager",
-      ],
-      cta: "Contact Sales",
-      href: user ? "/dashboard" : "/auth/sign-up",
-      popular: false,
-    },
-  ]
+  const signedIn = Boolean(await getSessionUserIdFromServerCookies())
+  const buyHref = signedIn ? "/dashboard/coins" : "/auth/sign-up"
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Header */}
-      <header className="ui-glass border-b border-border">
-        <div className="container mx-auto flex h-16 items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <BrandLogo size={32} className="h-8 w-8" />
-            <span className="text-xl font-bold">PersonaPost</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            {user ? (
-              <Button asChild>
-                <Link href="/dashboard">Go to Dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button asChild variant="ghost">
-                  <Link href="/auth/login">Sign In</Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/auth/sign-up">Get Started</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+    <MarketingShell signedIn={signedIn}>
+      <section className={`${container} pt-12 pb-12 sm:pt-16`}>
+        <h1 className="t-price max-w-4xl">
+          ₹0 to start. <em>Pay only when you draft.</em>
+        </h1>
+        <p className="t-lead mt-6 max-w-[36rem] text-muted-foreground">
+          Every account starts with {SIGNUP_COINS} credits and every feature. There&apos;s no subscription and credits don&apos;t
+          expire. If you run out, drafting pauses and approved posts still go out on time.
+        </p>
+      </section>
 
-      {/* Hero Section */}
-      <main className="flex-1">
-        <div className="container mx-auto px-6 py-16">
-          <div className="ui-glass mb-16 rounded-2xl border p-6 text-center sm:p-8">
-            <h1 className="text-balance text-4xl font-bold tracking-tight md:text-5xl">Choose Your Plan</h1>
-            <p className="mt-4 text-pretty text-lg text-muted-foreground">
-              Start free, upgrade when you need more. No credit card required.
-            </p>
-          </div>
-
-          {/* Pricing Cards */}
-          <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-3">
-            {plans.map((plan) => (
-              <div
-                key={plan.name}
-                className={`relative flex flex-col rounded-lg border bg-card p-8 ${
-                  plan.popular ? "border-primary shadow-lg shadow-primary/20" : ""
-                }`}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-sm font-medium text-primary-foreground">
-                    Most Popular
-                  </div>
-                )}
-
-                <div className="mb-6">
-                  <h3 className="text-2xl font-bold">{plan.name}</h3>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                    <span className="text-sm text-muted-foreground">/ {plan.period}</span>
-                  </div>
-                  <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{plan.description}</p>
-                </div>
-
-                <ul className="mb-8 flex-1 space-y-3">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-3">
-                      <svg
-                        className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  asChild
-                  size="lg"
-                  variant={plan.popular ? "default" : "outline"}
-                  className={plan.popular ? "" : "bg-transparent"}
-                >
-                  <Link href={plan.href}>{plan.cta}</Link>
-                </Button>
-              </div>
+      <section className={`${container} pb-20`}>
+        <table className="w-full border-t border-foreground text-left tabular-nums">
+          <caption className="sr-only">Credit packs</caption>
+          <thead className="t-meta text-muted-foreground">
+            <tr className="border-b border-border">
+              <th scope="col" className="py-3 font-normal">Pack</th>
+              <th scope="col" className="py-3 font-normal">Credits</th>
+              <th scope="col" className="hidden py-3 font-normal sm:table-cell">Roughly</th>
+              <th scope="col" className="hidden py-3 font-normal md:table-cell">Per credit</th>
+              <th scope="col" className="py-3 text-right font-normal">Price</th>
+              <th scope="col" className="py-3"><span className="sr-only">Buy</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {COIN_PACKAGES.map((pkg) => (
+              <tr key={pkg.id} className="border-b border-border">
+                <th scope="row" className="t-h3 py-6 pr-4 font-normal">{pkg.name.replace(" Pack", "")}</th>
+                <td className="py-6">{pkg.coins}</td>
+                <td className="hidden py-6 text-muted-foreground sm:table-cell">{Math.floor(pkg.coins / CREDIT_COSTS.post)} posts</td>
+                <td className="t-meta hidden py-6 text-muted-foreground md:table-cell">₹{(pkg.price / pkg.coins).toFixed(2)}</td>
+                <td className="t-h3 py-6 text-right">₹{pkg.price.toLocaleString("en-IN")}</td>
+                <td className="py-6 pl-4 text-right sm:pl-8">
+                  <Link href={buyHref} className={`${inkButton} h-9 px-4 text-sm`}>
+                    {signedIn ? "Buy" : "Start free"}
+                  </Link>
+                </td>
+              </tr>
             ))}
-          </div>
+          </tbody>
+        </table>
+        <p className="t-small mt-4 text-muted-foreground">Prices in Indian rupees, one-time payments through Razorpay.</p>
+      </section>
 
-          {/* FAQ Section */}
-          <div className="mx-auto mt-24 max-w-3xl">
-            <h2 className="mb-8 text-center text-3xl font-bold tracking-tight">Frequently Asked Questions</h2>
-            <div className="space-y-6">
-              <div className="rounded-lg border bg-card p-6">
-                <h3 className="mb-2 font-semibold">Can I change plans later?</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  Yes, you can upgrade or downgrade your plan at any time. Changes will be reflected in your next
-                  billing cycle.
-                </p>
-              </div>
-
-              <div className="rounded-lg border bg-card p-6">
-                <h3 className="mb-2 font-semibold">What happens if I exceed my post limit?</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  On the Free plan, you'll be prompted to upgrade once you reach 10 posts per month. Pro and Team plans
-                  have unlimited posts.
-                </p>
-              </div>
-
-              <div className="rounded-lg border bg-card p-6">
-                <h3 className="mb-2 font-semibold">How does the AI generation work?</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  Our AI uses your persona's personality and writing style to create authentic LinkedIn posts. Each
-                  persona learns from your preferences to generate content that sounds like you.
-                </p>
-              </div>
-
-              <div className="rounded-lg border bg-card p-6">
-                <h3 className="mb-2 font-semibold">Is my data secure?</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  Absolutely. We use industry-standard encryption and security practices. Your data is stored securely
-                  and never shared with third parties.
-                </p>
-              </div>
-            </div>
-          </div>
+      <section className="border-y border-border bg-card">
+        <div className={`${container} grid gap-12 py-16 lg:grid-cols-[2fr_3fr]`}>
+          <h2 className="t-h2">What a credit buys</h2>
+          <ul className="border-t border-foreground">
+            {costs.map((c) => (
+              <li key={c.label} className="flex items-baseline justify-between gap-6 border-b border-border py-4">
+                <span>{c.label}</span>
+                <span className="t-meta shrink-0">{c.credits === 0 ? "free" : `${c.credits} credit${c.credits === 1 ? "" : "s"}`}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-      </main>
+      </section>
 
-      {/* Footer */}
-      <footer className="ui-glass border-t border-border">
-        <div className="container mx-auto px-6 py-8">
-          <div className="text-center text-sm text-muted-foreground">© 2025 PersonaPost. All rights reserved.</div>
-        </div>
-      </footer>
-    </div>
+      <section className={`${container} py-16`}>
+        <p className="t-lead max-w-[40rem]">
+          <em className="t-h3">Running it yourself?</em> With Claude Code or Codex logged in on the same machine, pick it under
+          Settings → AI Engine and text drafts cost nothing. Credits then only go on images.
+        </p>
+      </section>
+    </MarketingShell>
   )
 }

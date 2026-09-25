@@ -17,6 +17,7 @@ export default defineSchema({
     posting_schedule: v.optional(v.any()),
     auto_post_enabled: v.optional(v.boolean()),
     timezone: v.optional(v.string()),
+    ai_provider: v.optional(v.string()),
     linkedin_connected: v.boolean(),
     linkedin_access_token: v.optional(v.string()),
     linkedin_refresh_token: v.optional(v.string()),

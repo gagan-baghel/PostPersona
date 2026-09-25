@@ -1,7 +1,8 @@
 import { mutationGeneric, queryGeneric } from "convex/server"
 import { v } from "convex/values"
 
-const DEFAULT_COINS = 100
+import { SIGNUP_COINS as DEFAULT_COINS } from "../lib/pricing"
+
 const DEFAULT_POSTING_SCHEDULE = {
   monday: "09:30",
   tuesday: "10:00",
@@ -188,14 +189,14 @@ export const updateProfile = mutationGeneric({
     postingSchedule: v.optional(v.any()),
     autoPostEnabled: v.optional(v.boolean()),
     timezone: v.optional(v.string()),
+    aiProvider: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, fullName, defaultPersonaPublic, allowProfileInExplore, postingSchedule, autoPostEnabled, timezone }) => {
+  handler: async (ctx, { userId, fullName, defaultPersonaPublic, allowProfileInExplore, postingSchedule, autoPostEnabled, timezone, aiProvider }) => {
     const user = await ctx.db.get(userId)
     if (!user) return { ok: false, error: "USER_NOT_FOUND" as const }
 
-    await ctx.db.patch(userId, {
-      full_name: fullName,
-    })
+    // patch() with undefined deletes the field, so only touch the name when one was sent.
+    if (fullName !== undefined) await ctx.db.patch(userId, { full_name: fullName })
 
     const profile = await ctx.db.query("profiles").withIndex("by_user_id", (q) => q.eq("user_id", userId)).unique()
     if (profile) {
@@ -205,6 +206,7 @@ export const updateProfile = mutationGeneric({
         posting_schedule: postingSchedule ?? profile.posting_schedule ?? DEFAULT_POSTING_SCHEDULE,
         auto_post_enabled: autoPostEnabled ?? profile.auto_post_enabled ?? false,
         timezone: timezone ?? profile.timezone ?? "UTC",
+        ai_provider: aiProvider ?? profile.ai_provider,
         updated_at: Date.now(),
       })
     }

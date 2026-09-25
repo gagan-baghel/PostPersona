@@ -7,7 +7,8 @@ import { useEffect } from "react"
 import { DashboardNav } from "@/components/dashboard-nav"
 import { MobileNav } from "@/components/mobile-nav"
 import { ReadinessIndicator } from "@/components/dashboard/readiness-indicator"
-import { Coins } from "lucide-react"
+import { Coins, PenSquare } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 import { useCoins } from "@/hooks/use-coins"
 
@@ -55,6 +56,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Coins Display - Clickable and Alerts when low */}
           <div className="ml-auto flex items-center gap-2">
+            <Button asChild size="sm" className="h-8 gap-1.5">
+              <Link href="/dashboard/generate">
+                <PenSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">New post</span>
+              </Link>
+            </Button>
             <ReadinessIndicator />
             <Link
               href="/dashboard/coins"

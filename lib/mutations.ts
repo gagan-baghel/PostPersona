@@ -127,6 +127,7 @@ export async function updateProfile(
         posting_schedule?: Record<string, string>
         auto_post_enabled?: boolean
         timezone?: string
+        ai_provider?: string
     },
 ): Promise<{ success: boolean; error?: string }> {
     try {

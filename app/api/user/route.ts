@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
 import { convexMutation, convexQuery } from "@/lib/convex/client"
 import { getLinkedInTokenHealth } from "@/lib/social/linkedin-token"
+import { AI_ENGINES, listEngines, resolveEngine } from "@/lib/ai/llm"
 
 export async function GET(request: Request) {
   try {
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
     }
 
     const tokenHealth = getLinkedInTokenHealth(profile || {})
+    const activeEngine = resolveEngine(profile?.ai_provider)
 
     return NextResponse.json({
       id: user._id,
@@ -38,6 +40,10 @@ export async function GET(request: Request) {
       linkedin_refresh_token_expires_at: profile?.linkedin_refresh_token_expires_at ?? null,
       linkedin_token_warning: tokenHealth.warning,
       linkedin_needs_reconnect: tokenHealth.needsReconnect,
+      ai_provider: profile?.ai_provider ?? null,
+      ai_engine: activeEngine,
+      ai_engine_free: activeEngine ? AI_ENGINES[activeEngine].local : false,
+      ai_engines: listEngines(),
       created_at: user.created_at,
       updated_at: profile?.updated_at ?? user.created_at,
     })
@@ -63,6 +69,7 @@ export async function PATCH(request: Request) {
       body.posting_schedule && typeof body.posting_schedule === "object" ? body.posting_schedule : undefined
     const autoPostEnabled = typeof body.auto_post_enabled === "boolean" ? body.auto_post_enabled : undefined
     const timezone = typeof body.timezone === "string" ? body.timezone : undefined
+    const aiProvider = typeof body.ai_provider === "string" && body.ai_provider in AI_ENGINES ? body.ai_provider : undefined
 
     const result = await convexMutation<any>("app:updateProfile", {
       userId,
@@ -72,6 +79,7 @@ export async function PATCH(request: Request) {
       postingSchedule,
       autoPostEnabled,
       timezone,
+      aiProvider,
     })
 
     if (!result?.ok) {

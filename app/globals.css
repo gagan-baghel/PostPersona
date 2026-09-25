@@ -125,6 +125,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    scroll-padding-top: 5rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
   body {
     @apply bg-background text-foreground overflow-x-hidden;
     background-image:
@@ -145,6 +153,66 @@
   .status-pulse {
     animation: statusPulse 1.6s ease-in-out infinite;
   }
+}
+
+/* Public marketing pages: "proof sheet". Paper, ink, and one red editing pen that only marks
+   things needing a human (a correction, a post waiting for approval). The app itself stays dark. */
+.marketing {
+  color-scheme: light;
+  --background: #f3efe6;
+  --foreground: #1a1712;
+  --card: #fbf8f2;
+  --card-foreground: #1a1712;
+  --popover: #fbf8f2;
+  --popover-foreground: #1a1712;
+  --primary: #1a1712;
+  --primary-foreground: #f8f5ee;
+  --secondary: #e9e3d6;
+  --secondary-foreground: #1a1712;
+  --muted: #e9e3d6;
+  --muted-foreground: #645d51; /* 5.6:1 on paper */
+  --accent: #e9e3d6;
+  --accent-foreground: #1a1712;
+  --border: #d9d1c1;
+  --input: #d9d1c1;
+  --ring: #be3a12;
+  --pen: #be3a12; /* 4.8:1 on paper, 5.5:1 under white text, 3.2:1 as a focus ring on ink */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --font-ui: var(--font-plex);
+  --font-mono-ui: var(--font-plex-mono);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-plex), system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+html:has(.marketing) body {
+  background: #f3efe6;
+}
+
+/* Type scale, ratio ~1.33 from 16px. Every marketing size comes from here. */
+.marketing .t-meta { font-family: var(--font-plex-mono), monospace; font-size: 0.8125rem; line-height: 1.5; letter-spacing: 0.01em; }
+.marketing .t-small { font-size: 0.875rem; line-height: 1.55; }
+.marketing .t-lead { font-size: 1.1875rem; line-height: 1.55; }
+.marketing .t-h3 { font-family: var(--font-display), Georgia, serif; font-size: 1.75rem; line-height: 1.15; }
+.marketing .t-h2 { font-family: var(--font-display), Georgia, serif; font-size: clamp(2.25rem, 4.2vw + 0.5rem, 3.75rem); line-height: 1.02; letter-spacing: -0.01em; }
+.marketing .t-h1 { font-family: var(--font-display), Georgia, serif; font-size: clamp(2.75rem, 4.6vw + 0.75rem, 4.5rem); line-height: 0.98; letter-spacing: -0.015em; }
+.marketing .t-price { font-family: var(--font-display), Georgia, serif; font-size: clamp(3rem, 6vw, 5.5rem); line-height: 0.95; letter-spacing: -0.02em; }
+
+.marketing a,
+.marketing summary {
+  transition: color 150ms var(--ease-out), background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
+}
+.marketing a:focus-visible,
+.marketing button:focus-visible,
+.marketing summary:focus-visible {
+  outline: 2px solid var(--pen);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketing * { transition: none !important; }
 }
 
 @keyframes statusPulse {

@@ -10,13 +10,7 @@ import Script from "next/script"
 import { useRouter } from "next/navigation"
 import { mutate } from "swr"
 import { CACHE_KEYS } from "@/lib/cache-keys"
-
-// Define packages locally to match backend
-const COIN_PACKAGES = [
-  { id: "starter", coins: 50, price: 199, name: "Starter Pack", badge: null },
-  { id: "pro", coins: 150, price: 499, name: "Pro Pack", badge: "Best Value" },
-  { id: "agency", coins: 500, price: 1499, name: "Agency Pack", badge: "Popular" },
-]
+import { COIN_PACKAGES } from "@/lib/pricing"
 
 declare global {
   interface Window {

@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { razorpay } from "@/lib/razorpay"
 import { getSessionUserIdFromRequest } from "@/lib/auth/session"
-
-export const COIN_PACKAGES = [
-  { id: "starter", coins: 50, price: 199, name: "Starter Pack" },
-  { id: "pro", coins: 150, price: 499, name: "Pro Pack" },
-  { id: "agency", coins: 500, price: 1499, name: "Agency Pack" },
-]
+import { COIN_PACKAGES } from "@/lib/pricing"
 
 export async function POST(req: NextRequest) {
   try {

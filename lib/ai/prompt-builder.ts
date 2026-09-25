@@ -9,6 +9,14 @@ type PromptPersona = {
 type PromptMessage = { role: "system" | "user"; content: string }
 type TargetPlatform = "linkedin"
 
+// The post goes out under the user's name, so a made-up number or timeframe is a reputational risk.
+const NO_INVENTION_RULE =
+  "Never invent facts, numbers, names, timeframes or results that are not in the topic or examples. If a detail would help but is missing, leave a short [bracketed gap] for the user to fill in."
+
+// Readers spot machine-written posts by their tics; these are the loudest ones.
+export const PLAIN_VOICE_RULE =
+  "Write like a person, not a content tool: no em dashes, no 'Here's the thing', no 'not X, it's Y' constructions, no 'game-changer', 'unlock', 'elevate' or 'delve'."
+
 function compact(text: string, maxChars = 220) {
   const cleaned = text.replace(/\s+/g, " ").trim()
   return cleaned.length > maxChars ? `${cleaned.slice(0, maxChars - 1)}…` : cleaned
@@ -36,6 +44,8 @@ export function buildStructuredPrompt(
     `Style: ${compact(persona.writing_style, 160)}.`,
     "Output: {\"content\":\"...\",\"hashtags\":[\"#...\",\"#...\"]}.",
     "Rules: 130-220 words, concise paragraphs, original wording, no markdown, no extra keys.",
+    NO_INVENTION_RULE,
+    PLAIN_VOICE_RULE,
     examples ? `Style examples:\n${examples}` : "",
   ]
     .filter(Boolean)
@@ -65,6 +75,8 @@ export function buildWeeklyStructuredPrompt(
     `Style: ${compact(persona.writing_style, 160)}.`,
     "Output: {\"posts\":[{\"topic\":\"...\",\"content\":\"...\",\"hashtags\":[\"#...\"]}]}",
     "Rules: each content 110-210 words, varied hooks, no markdown fences, no extra keys.",
+    NO_INVENTION_RULE,
+    PLAIN_VOICE_RULE,
     examples ? `Style examples:\n${examples}` : "",
   ]
     .filter(Boolean)
