@@ -1,10 +1,35 @@
-// Every function is internal: only the Next.js server can call them, using CONVEX_ADMIN_KEY
-// (lib/convex/client.ts). Public functions let anyone with the deployment URL read password
-// hashes and LinkedIn tokens, or grant themselves credits.
-import { internalMutationGeneric, internalQueryGeneric } from "convex/server"
+import { mutationGeneric, queryGeneric } from "convex/server"
 import { v } from "convex/values"
 
 import { SIGNUP_COINS as DEFAULT_COINS } from "../lib/pricing"
+
+// Only this project's Next.js server may call these. Callers must present a Vercel OIDC token
+// (verified in auth.config.ts) whose subject matches VERCEL_OIDC_SUBJECT for this deployment:
+// production data accepts only the production environment. Without this, anyone with the
+// deployment URL could read password hashes and LinkedIn tokens or grant themselves credits.
+async function assertServer(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> } }) {
+  const expected = process.env.VERCEL_OIDC_SUBJECT
+  const identity = await ctx.auth.getUserIdentity()
+  if (!expected || identity?.subject !== expected) throw new Error("Unauthorized")
+}
+
+const serverQuery = ((def: any) =>
+  queryGeneric({
+    ...def,
+    handler: async (ctx: any, args: any) => {
+      await assertServer(ctx)
+      return def.handler(ctx, args)
+    },
+  })) as typeof queryGeneric
+
+const serverMutation = ((def: any) =>
+  mutationGeneric({
+    ...def,
+    handler: async (ctx: any, args: any) => {
+      await assertServer(ctx)
+      return def.handler(ctx, args)
+    },
+  })) as typeof mutationGeneric
 
 const DEFAULT_POSTING_SCHEDULE = {
   monday: "09:30",
@@ -120,21 +145,21 @@ async function ensureDefaultPersonas(ctx: any) {
   }
 }
 
-export const getUserByEmail = internalQueryGeneric({
+export const getUserByEmail = serverQuery({
   args: { email: v.string() },
   handler: async (ctx, { email }) => {
     return await ctx.db.query("users").withIndex("by_email", (q) => q.eq("email", email)).unique()
   },
 })
 
-export const getUserById = internalQueryGeneric({
+export const getUserById = serverQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     return await ctx.db.get(userId)
   },
 })
 
-export const createUser = internalMutationGeneric({
+export const createUser = serverMutation({
   args: {
     email: v.string(),
     passwordHash: v.string(),
@@ -176,14 +201,14 @@ export const createUser = internalMutationGeneric({
   },
 })
 
-export const getProfile = internalQueryGeneric({
+export const getProfile = serverQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     return await ctx.db.query("profiles").withIndex("by_user_id", (q) => q.eq("user_id", userId)).unique()
   },
 })
 
-export const updateProfile = internalMutationGeneric({
+export const updateProfile = serverMutation({
   args: {
     userId: v.id("users"),
     fullName: v.optional(v.string()),
@@ -218,7 +243,7 @@ export const updateProfile = internalMutationGeneric({
   },
 })
 
-export const listPersonas = internalQueryGeneric({
+export const listPersonas = serverQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     const personas = await ctx.db.query("personas").withIndex("by_user_id", (q) => q.eq("user_id", userId)).collect()
@@ -226,7 +251,7 @@ export const listPersonas = internalQueryGeneric({
   },
 })
 
-export const listExplorePersonas = internalQueryGeneric({
+export const listExplorePersonas = serverQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     await ensureDefaultPersonas(ctx)
@@ -259,7 +284,7 @@ export const listExplorePersonas = internalQueryGeneric({
   },
 })
 
-export const getPersonaById = internalQueryGeneric({
+export const getPersonaById = serverQuery({
   args: {
     personaId: v.id("personas"),
     userId: v.optional(v.id("users")),
@@ -275,7 +300,7 @@ export const getPersonaById = internalQueryGeneric({
   },
 })
 
-export const createPersona = internalMutationGeneric({
+export const createPersona = serverMutation({
   args: {
     userId: v.id("users"),
     name: v.string(),
@@ -309,7 +334,7 @@ export const createPersona = internalMutationGeneric({
   },
 })
 
-export const updatePersona = internalMutationGeneric({
+export const updatePersona = serverMutation({
   args: {
     userId: v.id("users"),
     personaId: v.id("personas"),
@@ -340,7 +365,7 @@ export const updatePersona = internalMutationGeneric({
   },
 })
 
-export const setPersonaVisibility = internalMutationGeneric({
+export const setPersonaVisibility = serverMutation({
   args: {
     userId: v.id("users"),
     personaId: v.id("personas"),
@@ -365,7 +390,7 @@ export const setPersonaVisibility = internalMutationGeneric({
   },
 })
 
-export const deletePersona = internalMutationGeneric({
+export const deletePersona = serverMutation({
   args: {
     userId: v.id("users"),
     personaId: v.id("personas"),
@@ -381,7 +406,7 @@ export const deletePersona = internalMutationGeneric({
   },
 })
 
-export const clonePersona = internalMutationGeneric({
+export const clonePersona = serverMutation({
   args: {
     userId: v.id("users"),
     personaId: v.id("personas"),
@@ -421,7 +446,7 @@ export const clonePersona = internalMutationGeneric({
   },
 })
 
-export const listPosts = internalQueryGeneric({
+export const listPosts = serverQuery({
   args: {
     userId: v.id("users"),
     page: v.optional(v.number()),
@@ -469,7 +494,7 @@ export const listPosts = internalQueryGeneric({
   },
 })
 
-export const createPost = internalMutationGeneric({
+export const createPost = serverMutation({
   args: {
     userId: v.id("users"),
     personaId: v.optional(v.id("personas")),
@@ -531,7 +556,7 @@ export const createPost = internalMutationGeneric({
   },
 })
 
-export const deletePost = internalMutationGeneric({
+export const deletePost = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -547,7 +572,7 @@ export const deletePost = internalMutationGeneric({
   },
 })
 
-export const listPostsByStatus = internalQueryGeneric({
+export const listPostsByStatus = serverQuery({
   args: {
     userId: v.id("users"),
     statuses: v.array(v.string()),
@@ -567,7 +592,7 @@ export const listPostsByStatus = internalQueryGeneric({
   },
 })
 
-export const getPostByIdForUser = internalQueryGeneric({
+export const getPostByIdForUser = serverQuery({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -579,7 +604,7 @@ export const getPostByIdForUser = internalQueryGeneric({
   },
 })
 
-export const setPostWorkflow = internalMutationGeneric({
+export const setPostWorkflow = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -613,7 +638,7 @@ export const setPostWorkflow = internalMutationGeneric({
   },
 })
 
-export const setPostTargetPlatform = internalMutationGeneric({
+export const setPostTargetPlatform = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -632,7 +657,7 @@ export const setPostTargetPlatform = internalMutationGeneric({
   },
 })
 
-export const approvePostAndAutoSchedule = internalMutationGeneric({
+export const approvePostAndAutoSchedule = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -667,7 +692,7 @@ export const approvePostAndAutoSchedule = internalMutationGeneric({
   },
 })
 
-export const reorderScheduledQueue = internalMutationGeneric({
+export const reorderScheduledQueue = serverMutation({
   args: {
     userId: v.id("users"),
     orderedPostIds: v.array(v.id("posts")),
@@ -694,7 +719,7 @@ export const reorderScheduledQueue = internalMutationGeneric({
   },
 })
 
-export const markScheduledPostPublished = internalMutationGeneric({
+export const markScheduledPostPublished = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -723,7 +748,7 @@ export const markScheduledPostPublished = internalMutationGeneric({
   },
 })
 
-export const acquirePostPublishLock = internalMutationGeneric({
+export const acquirePostPublishLock = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -752,7 +777,7 @@ export const acquirePostPublishLock = internalMutationGeneric({
   },
 })
 
-export const markPostPublishFailure = internalMutationGeneric({
+export const markPostPublishFailure = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -795,7 +820,7 @@ export const markPostPublishFailure = internalMutationGeneric({
   },
 })
 
-export const replayDeadLetterPost = internalMutationGeneric({
+export const replayDeadLetterPost = serverMutation({
   args: {
     userId: v.id("users"),
     postId: v.id("posts"),
@@ -827,7 +852,7 @@ export const replayDeadLetterPost = internalMutationGeneric({
   },
 })
 
-export const createCampaign = internalMutationGeneric({
+export const createCampaign = serverMutation({
   args: {
     userId: v.id("users"),
     name: v.string(),
@@ -857,7 +882,7 @@ export const createCampaign = internalMutationGeneric({
   },
 })
 
-export const updateCampaign = internalMutationGeneric({
+export const updateCampaign = serverMutation({
   args: {
     userId: v.id("users"),
     campaignId: v.id("campaigns"),
@@ -889,7 +914,7 @@ export const updateCampaign = internalMutationGeneric({
   },
 })
 
-export const listCampaigns = internalQueryGeneric({
+export const listCampaigns = serverQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     const [campaigns, posts] = await Promise.all([
@@ -916,7 +941,7 @@ export const listCampaigns = internalQueryGeneric({
   },
 })
 
-export const getCampaignById = internalQueryGeneric({
+export const getCampaignById = serverQuery({
   args: {
     userId: v.id("users"),
     campaignId: v.id("campaigns"),
@@ -928,7 +953,7 @@ export const getCampaignById = internalQueryGeneric({
   },
 })
 
-export const getCampaignAnalytics = internalQueryGeneric({
+export const getCampaignAnalytics = serverQuery({
   args: {
     userId: v.id("users"),
     campaignId: v.id("campaigns"),
@@ -978,7 +1003,7 @@ export const getCampaignAnalytics = internalQueryGeneric({
   },
 })
 
-export const setLinkedinConnection = internalMutationGeneric({
+export const setLinkedinConnection = serverMutation({
   args: {
     userId: v.id("users"),
     connected: v.boolean(),
@@ -1009,7 +1034,7 @@ export const setLinkedinConnection = internalMutationGeneric({
   },
 })
 
-export const backfillProfiles = internalMutationGeneric({
+export const backfillProfiles = serverMutation({
   args: {},
   handler: async (ctx) => {
     const profiles = await ctx.db.query("profiles").collect()
@@ -1044,7 +1069,7 @@ export const backfillProfiles = internalMutationGeneric({
   },
 })
 
-export const getDashboardAnalytics = internalQueryGeneric({
+export const getDashboardAnalytics = serverQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     const [posts, personas, profile, transactions] = await Promise.all([
@@ -1103,7 +1128,7 @@ export const getDashboardAnalytics = internalQueryGeneric({
   },
 })
 
-export const findTransactionByPaymentId = internalQueryGeneric({
+export const findTransactionByPaymentId = serverQuery({
   args: { paymentId: v.string() },
   handler: async (ctx, { paymentId }) => {
     return await ctx.db
@@ -1113,7 +1138,7 @@ export const findTransactionByPaymentId = internalQueryGeneric({
   },
 })
 
-export const addCoins = internalMutationGeneric({
+export const addCoins = serverMutation({
   args: {
     userId: v.id("users"),
     amount: v.number(),
@@ -1165,7 +1190,7 @@ export const addCoins = internalMutationGeneric({
   },
 })
 
-export const deleteUserAccount = internalMutationGeneric({
+export const deleteUserAccount = serverMutation({
   args: {
     userId: v.id("users"),
   },

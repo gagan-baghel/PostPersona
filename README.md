@@ -73,7 +73,6 @@ Copy `.env.example` to `.env.local` and fill values.
 ### Required
 
 - `NEXT_PUBLIC_CONVEX_URL`
-- `CONVEX_ADMIN_KEY`
 - `SESSION_SECRET` (required in production)
 - An AI engine: the `claude` or `codex` CLI on the server machine, or `GROK_API_KEY`
 - `NEXT_PUBLIC_APP_URL` in production, so LinkedIn/Slack link previews get absolute image URLs
@@ -111,7 +110,7 @@ Copy `.env.example` to `.env.local` and fill values.
 
 ## Production Checklist
 
-All Convex functions are internal, so the app must have `CONVEX_ADMIN_KEY` set to a deploy key for the same deployment (Convex dashboard, Settings, Deploy keys). Check it's in Vercel before running `npx convex deploy`; without it the app can't read or write data once the functions are deployed.
+Convex only answers this project's Next.js server. The server sends the OIDC token Vercel issues to every function, Convex verifies it (`convex/auth.config.ts`), and each function checks the token's subject against the deployment's `VERCEL_OIDC_SUBJECT` env var (production accepts only `…:environment:production`). There is no shared secret. Locally, `vercel env pull .env.local` writes a development token that lasts about 12 hours; run it again when calls start failing with "Unauthorized".
 
 Run before deploy:
 
@@ -124,7 +123,6 @@ Minimum production env:
 
 - `SESSION_SECRET`
 - `NEXT_PUBLIC_CONVEX_URL`
-- `CONVEX_ADMIN_KEY`
 - `GROK_API_KEY` (hosted deploys have no local CLI)
 - LinkedIn keys for LinkedIn features
 - Cloudinary and Razorpay keys for those feature paths

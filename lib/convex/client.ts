@@ -11,35 +11,28 @@ function getConvexUrl() {
   return url
 }
 
-let warnedMissingKey = false
-
-function warnMissingKey() {
-  if (warnedMissingKey) return
-  warnedMissingKey = true
-  console.error(
-    "[convex] CONVEX_ADMIN_KEY is not set. Convex functions are internal, so calls will fail once they are deployed. " +
-      "Create a deploy key in the Convex dashboard (Settings > Deploy keys) and add it to your environment.",
-  )
+// Convex only answers callers holding this project's Vercel OIDC token (convex/auth.config.ts).
+// On Vercel it arrives per request in the x-vercel-oidc-token header; locally `vercel env pull`
+// writes VERCEL_OIDC_TOKEN to .env.local. Same lookup as @vercel/oidc, without the dependency.
+function getVercelOidcToken() {
+  const requestContext = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.()
+  const token = requestContext?.headers?.["x-vercel-oidc-token"] ?? process.env.VERCEL_OIDC_TOKEN
+  if (!token) {
+    throw new Error("Missing Vercel OIDC token. Locally, run `vercel env pull .env.local` (tokens last about 12 hours).")
+  }
+  return token as string
 }
 
-// With the admin key we use the path `npx convex run` uses (/api/function), which can reach internal
-// functions. Without it we fall back to the public endpoints, which only work until internal functions deploy.
-// ponytail: `function` is typed @internal in convex/browser; recheck on Convex upgrades.
-async function callConvex<T>(kind: "query" | "mutation", name: string, args?: Record<string, unknown>): Promise<T> {
-  const client = new ConvexHttpClient(getConvexUrl()) as any
-  const adminKey = process.env.CONVEX_ADMIN_KEY
-  if (adminKey) {
-    client.setAdminAuth(adminKey)
-    return (await client.function(makeFunctionReference(name), undefined, args ?? {})) as T
-  }
-  warnMissingKey()
-  return (await client[kind](makeFunctionReference(name), args ?? {})) as T
+function getClient() {
+  const client = new ConvexHttpClient(getConvexUrl())
+  client.setAuth(getVercelOidcToken())
+  return client
 }
 
 export async function convexQuery<T = any>(name: string, args?: Record<string, unknown>): Promise<T> {
-  return callConvex<T>("query", name, args)
+  return (await getClient().query(makeFunctionReference<"query">(name), (args ?? {}) as any)) as T
 }
 
 export async function convexMutation<T = any>(name: string, args?: Record<string, unknown>): Promise<T> {
-  return callConvex<T>("mutation", name, args)
+  return (await getClient().mutation(makeFunctionReference<"mutation">(name), (args ?? {}) as any)) as T
 }

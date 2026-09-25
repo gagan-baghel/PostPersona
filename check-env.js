@@ -15,7 +15,6 @@ const envConfig = dotenv.parse(fs.readFileSync(envPath))
 
 const REQUIRED_KEYS = [
   "NEXT_PUBLIC_CONVEX_URL",
-  "CONVEX_ADMIN_KEY",
   "SESSION_SECRET",
 ]
 
