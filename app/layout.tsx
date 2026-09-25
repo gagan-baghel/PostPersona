@@ -16,14 +16,22 @@ const fontPlexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"],
 const description =
   "Rework your whole LinkedIn in your own voice: headline, About, posts and replies. Nothing goes out without your approval."
 
-// Share previews (LinkedIn, Slack, X) need absolute image URLs. Without an explicit app URL,
-// fall back to the Vercel production domain rather than localhost.
-const siteUrl =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined)
+// Share previews (LinkedIn, Slack, X) need absolute image URLs. Accepts "example.com" as well as
+// "https://example.com": a bare host in the env once failed every Vercel build.
+function toSiteUrl(value?: string) {
+  if (!value?.trim()) return undefined
+  try {
+    return new URL(/^https?:\/\//i.test(value) ? value : `https://${value.trim()}`)
+  } catch {
+    return undefined
+  }
+}
+
+// Fall back to the Vercel production domain rather than localhost.
+const siteUrl = toSiteUrl(process.env.NEXT_PUBLIC_APP_URL) ?? toSiteUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL)
 
 export const metadata: Metadata = {
-  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
+  metadataBase: siteUrl,
   title: "PersonaPost: rework your whole LinkedIn",
   description,
   openGraph: {
