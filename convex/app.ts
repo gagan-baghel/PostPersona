@@ -4,13 +4,14 @@ import { v } from "convex/values"
 import { SIGNUP_COINS as DEFAULT_COINS } from "../lib/pricing"
 
 // Only this project's Next.js server may call these. Callers must present a Vercel OIDC token
-// (verified in auth.config.ts) whose subject matches VERCEL_OIDC_SUBJECT for this deployment:
-// production data accepts only the production environment. Without this, anyone with the
-// deployment URL could read password hashes and LinkedIn tokens or grant themselves credits.
+// (verified in auth.config.ts) whose subject is listed in this deployment's VERCEL_OIDC_SUBJECT
+// (comma-separated, e.g. the production and development environments of post-persona-pcw3).
+// Without this, anyone with the deployment URL could read password hashes and LinkedIn tokens
+// or grant themselves credits.
 async function assertServer(ctx: { auth: { getUserIdentity: () => Promise<{ subject: string } | null> } }) {
-  const expected = process.env.VERCEL_OIDC_SUBJECT
+  const allowed = (process.env.VERCEL_OIDC_SUBJECT ?? "").split(",").map((s) => s.trim()).filter(Boolean)
   const identity = await ctx.auth.getUserIdentity()
-  if (!expected || identity?.subject !== expected) throw new Error("Unauthorized")
+  if (!identity || !allowed.includes(identity.subject)) throw new Error("Unauthorized")
 }
 
 const serverQuery = ((def: any) =>
