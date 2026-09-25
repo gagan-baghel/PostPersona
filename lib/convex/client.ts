@@ -11,21 +11,35 @@ function getConvexUrl() {
   return url
 }
 
-function getClient() {
-  const client = new ConvexHttpClient(getConvexUrl())
+let warnedMissingKey = false
+
+function warnMissingKey() {
+  if (warnedMissingKey) return
+  warnedMissingKey = true
+  console.error(
+    "[convex] CONVEX_ADMIN_KEY is not set. Convex functions are internal, so calls will fail once they are deployed. " +
+      "Create a deploy key in the Convex dashboard (Settings > Deploy keys) and add it to your environment.",
+  )
+}
+
+// With the admin key we use the path `npx convex run` uses (/api/function), which can reach internal
+// functions. Without it we fall back to the public endpoints, which only work until internal functions deploy.
+// ponytail: `function` is typed @internal in convex/browser; recheck on Convex upgrades.
+async function callConvex<T>(kind: "query" | "mutation", name: string, args?: Record<string, unknown>): Promise<T> {
+  const client = new ConvexHttpClient(getConvexUrl()) as any
   const adminKey = process.env.CONVEX_ADMIN_KEY
-  if (adminKey && typeof (client as any).setAdminAuth === "function") {
-    ;(client as any).setAdminAuth(adminKey)
+  if (adminKey) {
+    client.setAdminAuth(adminKey)
+    return (await client.function(makeFunctionReference(name), undefined, args ?? {})) as T
   }
-  return client
+  warnMissingKey()
+  return (await client[kind](makeFunctionReference(name), args ?? {})) as T
 }
 
 export async function convexQuery<T = any>(name: string, args?: Record<string, unknown>): Promise<T> {
-  const client = getClient()
-  return (await client.query(makeFunctionReference<"query">(name), (args ?? {}) as any)) as T
+  return callConvex<T>("query", name, args)
 }
 
 export async function convexMutation<T = any>(name: string, args?: Record<string, unknown>): Promise<T> {
-  const client = getClient()
-  return (await client.mutation(makeFunctionReference<"mutation">(name), (args ?? {}) as any)) as T
+  return callConvex<T>("mutation", name, args)
 }

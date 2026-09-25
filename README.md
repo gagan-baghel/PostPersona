@@ -111,6 +111,8 @@ Copy `.env.example` to `.env.local` and fill values.
 
 ## Production Checklist
 
+All Convex functions are internal, so the app must have `CONVEX_ADMIN_KEY` set to a deploy key for the same deployment (Convex dashboard, Settings, Deploy keys). Check it's in Vercel before running `npx convex deploy`; without it the app can't read or write data once the functions are deployed.
+
 Run before deploy:
 
 ```bash
